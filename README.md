@@ -35,16 +35,3 @@ The initial state for preferences is an empty dictionary, package authors that w
 If a preference must be known at compile-time, (and hence changing it should invalidate your package's precompiled `.ji` file) access of it should be done through the `Preferences.CompileTime` module.
 The exact same API is exposed, but the preferences will be stored within a separate dictionary from normal `Preferences`, and any change made to these preferences will cause your package to be recompiled the next time it is loaded.
 Packages that wish to use purely compile-time preferences can simply `using Preferences.CompileTime`, mixed usage will require compile-time usage to access functions and macros via `CompileTime.@load_preferences()`, etc...
-
-# API Reference
-
-```@docs
-Preferences.load_preferences
-Preferences.@load_preferences
-Preferences.save_preferences!
-Preferences.@save_preferences!
-Preferences.modify_preferences!
-Preferences.@modify_preferences!
-Preferences.clear_preferences!
-Preferences.@clear_preferences!
-```
