@@ -37,6 +37,9 @@ end
 up_uuid = UUID(TOML.parsefile(joinpath(@__DIR__, "UsesPreferences", "Project.toml"))["uuid"])
 up_path = joinpath(@__DIR__, "UsesPreferences")
 
+# Silence Pkg output:
+Pkg.DEFAULT_IO[] = IOBuffer()
+
 @testset "Preferences" begin
     # Create a temporary package, store some preferences within it.
     with_temp_project() do project_dir
@@ -48,7 +51,6 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         end
 
         prefs = load_preferences(up_uuid)
-        run(`cat $(project_dir)/Project.toml`)
         @test haskey(prefs, "foo")
         @test prefs["foo"] == "bar"
         @test prefs["baz"]["qux"] == "spoon"
@@ -158,9 +160,11 @@ end
         # Helper function to run a sub-julia process and ensure that it either does or does not precompile.
         function did_precompile()
             out = Pipe()
-            cmd = setenv(`$(Base.julia_cmd()) -i --project=$(project_dir) -e 'using UsesPreferences; exit(0)'`, "JULIA_DEPOT_PATH" => Base.DEPOT_PATH[1], "JULIA_DEBUG" => "loading")
+            cmd = setenv(`$(Base.julia_cmd()) -i --project=$(project_dir) -e 'using UsesPreferences; exit(0)'`,
+                         "JULIA_DEPOT_PATH" => Base.DEPOT_PATH[1], "JULIA_DEBUG" => "loading")
             run(pipeline(cmd, stdout=out, stderr=out))
             close(out.in)
+            # To debug failures, print this out and scan for precompilation messsages
             output = String(read(out))
             return occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output)
         end

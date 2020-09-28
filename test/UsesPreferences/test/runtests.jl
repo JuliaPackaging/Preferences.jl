@@ -1,7 +1,13 @@
-using UsesPreferences, Test, CompilePreferences
+using UsesPreferences, Test
+
+# We know we want to use compile-time preferences, so only bring the
+# compile-time bindings in.  We still need to access `Preferences`
+# bindings though, so `import` that without bringing the bindings themselves in.
+import Preferences
+using Preferences.CompileTime
 
 # Get the UUID for UsesPreferences
-up_uuid = CompilePreferences.get_uuid(UsesPreferences)
+up_uuid = Preferences.get_uuid(UsesPreferences)
 
 prefs = load_preferences(up_uuid)
 @test haskey(prefs, "backend")

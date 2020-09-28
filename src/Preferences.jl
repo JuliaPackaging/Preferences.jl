@@ -11,6 +11,9 @@ const PREFS_KEY = "compile-preferences"
 include("common.jl")
 end # module CompileTime
 
+# Export `CompileTime` but don't `using` it
+export CompileTime
+
 # Second copy of code for non-compiletime preferences
 const PREFS_KEY = "preferences"
 include("common.jl")
