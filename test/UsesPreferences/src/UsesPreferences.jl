@@ -1,33 +1,38 @@
 module UsesPreferences
-using Preferences.CompileTime
+using Preferences
 
-# This will get initialized in __init__()
-backend = Ref{String}()
-
-function set_backend(new_backend::AbstractString)
+function set_backend(new_backend::String)
     if !(new_backend in ("OpenCL", "CUDA", "jlFPGA"))
         throw(ArgumentError("Invalid backend: \"$(new_backend)\""))
     end
 
     # Set it in our runtime values, as well as saving it to disk
-    backend[] = new_backend
-    @modify_preferences!() do prefs
-        prefs["backend"] = new_backend
+    @set_preferences!("backend" => new_backend)
+    @info("New backend set; restart your Julia session for this change to take effect!")
+end
+
+const backend = @load_preference("backend", "OpenCL")
+
+# An example that helps us to prove that things are happening at compile-time
+function do_computation()
+    @static if backend == "OpenCL"
+        return "OpenCL is the best!"
+    elseif backend == "CUDA"
+        return "CUDA; so fast, so fresh!"
+    elseif backend == "jlFPGA"
+        return "The Future is Now, jlFPGA online!"
+    else
+        return nothing
     end
 end
 
-function get_backend()
-    return backend[]
+
+# A non-compiletime preference
+function set_username(username::String)
+    @set_preferences!("username" => username)
 end
-
-function __init__()
-    @modify_preferences!() do prefs
-        prefs["initialized"] = "true"
-
-        # If it's never been set before, default it to OpenCL
-        prefs["backend"] = get(prefs, "backend", "OpenCL")
-        backend[] = prefs["backend"]
-    end
+function get_username()
+    return @load_preference("username")
 end
 
 end # module UsesPreferences

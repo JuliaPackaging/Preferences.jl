@@ -1,9 +1,9 @@
 using Base: UUID
-using Preferences, Test, TOML, Pkg
+using Preferences, Test, TOML
 
-function activate(f::Function, project::String)
+function activate(f::Function, env_dir::String)
     saved_active_project = Base.ACTIVE_PROJECT[]
-    Base.ACTIVE_PROJECT[] = project
+    Base.ACTIVE_PROJECT[] = env_dir
     try
         f()
     finally
@@ -11,21 +11,13 @@ function activate(f::Function, project::String)
     end
 end
 
-function with_temp_project(f::Function)
-    mktempdir() do dir
-        activate(dir) do
-            f(dir)
-        end
-    end
-end
-
-function with_temp_depot_and_project(f::Function)
+function with_temp_depot(f::Function)
     mktempdir() do dir
         saved_depot_path = copy(Base.DEPOT_PATH)
         empty!(Base.DEPOT_PATH)
         push!(Base.DEPOT_PATH, dir)
         try
-            with_temp_project(f)
+            f()
         finally
             empty!(Base.DEPOT_PATH)
             append!(Base.DEPOT_PATH, saved_depot_path)
@@ -33,160 +25,205 @@ function with_temp_depot_and_project(f::Function)
     end
 end
 
+function activate_and_run(project_dir::String, code::String; env::Dict = Dict())
+    mktempdir() do dir
+        open(joinpath(dir, "test_code.jl"), "w") do io
+            write(io, code)
+        end
+
+        out = Pipe()
+        cmd = setenv(`$(Base.julia_cmd()) --project=$(project_dir) $(dir)/test_code.jl`,
+                     env..., "JULIA_DEPOT_PATH" => Base.DEPOT_PATH[1])
+        p = run(pipeline(cmd, stdout=out, stderr=out); wait=false)
+        close(out.in)
+        wait(p)
+        output = String(read(out))
+        if !success(p)
+            println(output)
+        end
+        @test success(p)
+        return output
+    end
+end
+
 # Some useful constants
 up_uuid = UUID(TOML.parsefile(joinpath(@__DIR__, "UsesPreferences", "Project.toml"))["uuid"])
 up_path = joinpath(@__DIR__, "UsesPreferences")
 
-# Silence Pkg output:
-Pkg.DEFAULT_IO[] = IOBuffer()
-
 @testset "Preferences" begin
-    # Create a temporary package, store some preferences within it.
-    with_temp_project() do project_dir
-        Pkg.develop(path=up_path)
-        @test isempty(load_preferences(up_uuid))
-        modify_preferences!(up_uuid) do prefs
-            prefs["foo"] = "bar"
-            prefs["baz"] = Dict("qux" => "spoon")
-        end
+    # Ensure there is no LocalPreferences.toml file in UsesPreferences:
+    local_prefs_toml = joinpath(up_path, "LocalPreferences.toml")
+    rm(local_prefs_toml; force=true)
+    with_temp_depot() do
+        # Start with the default test of the backend being un-set, we just get the default
+        activate_and_run(up_path, """
+            using UsesPreferences, Test, Preferences
+            using Base: UUID
+            @test load_preference($(repr(up_uuid)), "backend") === nothing
+            @test UsesPreferences.backend == "OpenCL"
+        """)
 
-        prefs = load_preferences(up_uuid)
-        @test haskey(prefs, "foo")
-        @test prefs["foo"] == "bar"
-        @test prefs["baz"]["qux"] == "spoon"
+        # Next, change a setting
+        activate_and_run(up_path, """
+            using UsesPreferences
+            UsesPreferences.set_backend("CUDA")
+        """)
 
-        project_path = joinpath(project_dir, "Project.toml")
-        @test isfile(project_path)
-        proj = TOML.parsefile(project_path)
-        @test haskey(proj, "preferences")
-        @test isa(proj["preferences"], Dict)
-        @test haskey(proj["preferences"], string(up_uuid))
-        @test isa(proj["preferences"][string(up_uuid)], Dict)
-        @test proj["preferences"][string(up_uuid)]["foo"] == "bar"
-        @test isa(proj["preferences"][string(up_uuid)]["baz"], Dict)
-        @test proj["preferences"][string(up_uuid)]["baz"]["qux"] == "spoon"
+        # Ensure that's showing up in LocalPreferences.toml:
+        prefs = TOML.parsefile(local_prefs_toml)
+        @test haskey(prefs, "UsesPreferences")
+        @test prefs["UsesPreferences"]["backend"] == "CUDA"
+        
+        # Now show that it forces recompilation
+        did_precompile(output) = occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output)
+        cuda_test = """
+        using UsesPreferences, Test
+        @test UsesPreferences.backend == "CUDA"
+        """
+        output = activate_and_run(up_path, cuda_test; env=Dict("JULIA_DEBUG" => "loading"))
+        @test did_precompile(output)
 
-        clear_preferences!(up_uuid)
-        proj = TOML.parsefile(project_path)
-        @test !haskey(proj, "preferences")
-        @test isempty(load_preferences(up_uuid))
+        # Show that it does not force a recompile the second time
+        output = activate_and_run(up_path, cuda_test; env=Dict("JULIA_DEBUG" => "loading"))
+        @test !did_precompile(output)
+
+        # Test non-compiletime preferences a bit
+        activate_and_run(up_path, """
+            using UsesPreferences, Test, Preferences
+            using Base: UUID
+            @test load_preference($(repr(up_uuid)), "username") === nothing
+            @test UsesPreferences.get_username() === nothing
+            UsesPreferences.set_username("giordano")
+            @test UsesPreferences.get_username() == "giordano"
+        """)
+
+        # This does not cause a recompilation, and we can also get the username back again:
+        username_test = """
+        using UsesPreferences, Test
+        @test UsesPreferences.get_username() == "giordano"
+        """
+        output = activate_and_run(up_path, username_test; env=Dict("JULIA_DEBUG" => "loading"))
+        @test !did_precompile(output)
     end
 end
 
-@testset "CompileTime" begin
-    # Create a temporary package, store some preferences within it.
-    with_temp_project() do project_dir
-        # Add UsesPreferences as a package to this project so that the preferences are visible
-        Pkg.develop(path=up_path)
-        CompileTime.save_preferences!(up_uuid, Dict("foo" => "bar"))
+# Load UsesPreferences, as we need it loaded for some set/get trickery below
+activate(up_path) do
+    eval(:(using UsesPreferences))
+end
+@testset "Inheritance" begin
+    # Ensure there is no LocalPreferences.toml file in UsesPreferences:
+    local_prefs_toml = joinpath(up_path, "LocalPreferences.toml")
+    rm(local_prefs_toml; force=true)
+    with_temp_depot() do
+        mktempdir() do env_dir
+            # We're going to create a higher environment
+            push!(Base.LOAD_PATH, env_dir)
 
-        project_path = joinpath(project_dir, "Project.toml")
-        @test isfile(project_path)
-        proj = TOML.parsefile(project_path)
-        @test haskey(proj, "compile-preferences")
-        @test isa(proj["compile-preferences"], Dict)
-        @test haskey(proj["compile-preferences"], string(up_uuid))
-        @test isa(proj["compile-preferences"][string(up_uuid)], Dict)
-        @test proj["compile-preferences"][string(up_uuid)]["foo"] == "bar"
-
-        prefs = CompileTime.modify_preferences!(up_uuid) do prefs
-            prefs["foo"] = "baz"
-            prefs["spoon"] = [Dict("qux" => "idk")]
-        end
-        @test prefs == CompileTime.load_preferences(up_uuid)
-
-        CompileTime.clear_preferences!(up_uuid)
-        proj = TOML.parsefile(project_path)
-        @test !haskey(proj, "compile-preferences")
-    end
-
-    # Do a test with stacked environments
-    mktempdir() do outer_env
-        # Set preferences for the package within the outer env
-        activate(outer_env) do
-            CompileTime.save_preferences!(up_uuid, Dict("foo" => "outer"))
-        end
-
-        OLD_LOAD_PATH = deepcopy(Base.LOAD_PATH)
-        try
-            empty!(Base.LOAD_PATH)
-            append!(Base.LOAD_PATH, ["@", outer_env, "@stdlib"])
-
-            with_temp_project() do project_dir
-                CompileTime.save_preferences!(up_uuid, Dict("foo" => "inner"))
-
-                # Ensure that an initial load finds none of these, since the Package is not added anywhere:
-                @test isempty(CompileTime.load_preferences(up_uuid))
-
-                # add it to the inner project, ensure that we get "inner" as the "foo" value:
-                Pkg.develop(path=up_path)
-                prefs = CompileTime.load_preferences(up_uuid)
-                @test haskey(prefs, "foo")
-                @test prefs["foo"] == "inner"
-
-                # Remove it from the inner project, add it to the outer project, ensure we get "outer"
-                Pkg.rm("UsesPreferences")
-                activate(outer_env) do
-                    Pkg.develop(path=up_path)
-                end
-                prefs = CompileTime.load_preferences(up_uuid)
-                @test haskey(prefs, "foo")
-                @test prefs["foo"] == "outer"
+            # We're going to add `UsesPreferences` to this environment
+            open(joinpath(env_dir, "Project.toml"), "w") do io
+                TOML.print(io, Dict(
+                    "deps" => Dict(
+                        "UsesPreferences" => string(up_uuid),
+                    )
+                ))
             end
-        finally
-            empty!(Base.LOAD_PATH)
-            append!(Base.LOAD_PATH, OLD_LOAD_PATH)
+
+            # We're going to write out some Preferences for UP in the higher environment
+            activate(env_dir) do
+                set_preferences!(up_uuid, "location" => "outer_public"; export_prefs=true)
+                # Verify that this is stored in the environment's Project.toml file
+                proj = Base.parsed_toml(joinpath(env_dir, "Project.toml"))
+                @test haskey(proj, "preferences")
+                @test haskey(proj["preferences"], "UsesPreferences")
+                @test proj["preferences"]["UsesPreferences"]["location"] == "outer_public"
+                @test load_preference(up_uuid, "location") == "outer_public"
+
+                # Add preferences to the outer env's `LocalPreferences.toml`
+                set_preferences!(up_uuid, "location" => "outer_local")
+                prefs = Base.parsed_toml(joinpath(env_dir, "LocalPreferences.toml"))
+                @test haskey(prefs, "UsesPreferences")
+                @test prefs["UsesPreferences"]["location"] == "outer_local"
+                @test load_preference(up_uuid, "location") == "outer_local"
+            end
+
+            # Ensure that we can load the preferences the same even if we exit the `activate()`
+            @test load_preference(up_uuid, "location") == "outer_local"
+
+            # Next, we're going to create a lower environment, add some preferences there, and ensure
+            # the inheritance works properly.
+            activate(up_path) do
+                # Ensure that activating this other path doesn't change anything
+                @test load_preference(up_uuid, "location") == "outer_local"
+
+                # Set a local preference in this location, which should be the first location on the load path
+                set_preferences!(up_uuid, "location" => "inner_local")
+                prefs = Base.parsed_toml(joinpath(up_path, "LocalPreferences.toml"))
+                @test haskey(prefs, "UsesPreferences")
+                @test prefs["UsesPreferences"]["location"] == "inner_local"
+                @test load_preference(up_uuid, "location") == "inner_local"
+            end
+
+            # Let's add some complex objects, test that recursive merging works, and that
+            # the special meaning of `nothing` and `missing` works
+            activate(env_dir) do
+                set_preferences!(up_uuid, "nested" => Dict(
+                    "nested2" => Dict("a" => 1, "b" => 2),
+                    "leaf" => "hello",
+                ); export_prefs=true)
+                set_preferences!(up_uuid, "nested" => Dict(
+                    "nested2" => Dict("b" => 3)),
+                )
+
+                nested = load_preference(up_uuid, "nested")
+                @test isa(nested, Dict) && haskey(nested, "nested2")
+                @test nested["nested2"]["a"] == 1
+                @test nested["nested2"]["b"] == 3
+                @test nested["leaf"] == "hello"
+            end
+
+            # Add another layer in the inner environment
+            activate(up_path) do
+                set_preferences!(up_uuid, "nested" => Dict(
+                    "nested2" => Dict("a" => "foo"),
+                    "leaf" => "world",
+                ))
+                nested = load_preference(up_uuid, "nested")
+                @test isa(nested, Dict) && haskey(nested, "nested2")
+                @test nested["nested2"]["a"] == "foo"
+                @test nested["nested2"]["b"] == 3
+                @test nested["leaf"] == "world"
+            end
+
+            # Set the local setting of the upper environment to `missing`; this causes it to
+            # pass through and `b` will suddenly equal `2`:
+            activate(env_dir) do
+                # Test that trying to over-set a preference in another package fails unless we force it
+                @test_throws ArgumentError set_preferences!(up_uuid, "nested" => nothing)
+                set_preferences!(up_uuid, "nested" => Dict(
+                    "nested2" => missing,
+                    "leaf" => nothing,
+                ); force=true)
+                nested = load_preference(up_uuid, "nested")
+                @test isa(nested, Dict) && haskey(nested, "nested2")
+                @test nested["nested2"]["a"] == 1
+                @test nested["nested2"]["b"] == 2
+
+                # Let's check that the `__clear__` keys are what we expect:
+                prefs = Base.parsed_toml(joinpath(env_dir, "LocalPreferences.toml"))
+                @test prefs["UsesPreferences"]["nested"]["__clear__"] == ["leaf"]
+                @test !haskey(prefs["UsesPreferences"]["nested"], "leaf")
+                @test !haskey(nested, "leaf")
+            end
+
+            # Show that it cascades down to the lower levels as well
+            activate(up_path) do
+                nested = load_preference(up_uuid, "nested")
+                @test isa(nested, Dict) && haskey(nested, "nested2")
+                @test nested["nested2"]["a"] == "foo"
+                @test nested["nested2"]["b"] == 2
+                @test nested["leaf"] == "world"
+            end
         end
-    end
-
-    # Do a test within a package to ensure that we can use the macros
-    with_temp_project() do project_dir
-        Pkg.develop(path=up_path)
-
-        # Run UsesPreferences tests manually, so that they can run in the explicitly-given project
-        test_script = joinpath(@__DIR__, "UsesPreferences", "test", "runtests.jl")
-        run(`$(Base.julia_cmd()) --project=$(project_dir) $(test_script)`)
-
-        # Load the preferences, ensure we see the `jlFPGA` backend:
-        prefs = CompileTime.load_preferences(up_uuid)
-        @test haskey(prefs, "backend")
-        @test prefs["backend"] == "jlFPGA"
-    end
-
-    # Run another test, this time setting up a whole new depot so that compilation caching can be checked:
-    with_temp_depot_and_project() do project_dir
-        Pkg.develop(path=up_path)
-
-        # Helper function to run a sub-julia process and ensure that it either does or does not precompile.
-        function did_precompile()
-            out = Pipe()
-            cmd = setenv(`$(Base.julia_cmd()) -i --project=$(project_dir) -e 'using UsesPreferences; exit(0)'`,
-                         "JULIA_DEPOT_PATH" => Base.DEPOT_PATH[1], "JULIA_DEBUG" => "loading")
-            run(pipeline(cmd, stdout=out, stderr=out))
-            close(out.in)
-            # To debug failures, print this out and scan for precompilation messsages
-            output = String(read(out))
-            return occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output)
-        end
-
-        # Initially, we must precompile, of course, because no preferences are set.
-        @test did_precompile()
-        # Next, we recompile, because the preferences have been altered
-        @test did_precompile()
-        # Finally, we no longer have to recompile.
-        @test !did_precompile()
-
-        # Modify the preferences, ensure that causes precompilation and then that too shall pass.
-        prefs = CompileTime.modify_preferences!(up_uuid) do prefs
-            prefs["backend"] = "something new"
-        end
-        @test did_precompile()
-        @test !did_precompile()
-
-        # Finally, switch it back, and ensure that this does not cause precompilation
-        prefs = CompileTime.modify_preferences!(up_uuid) do prefs
-            prefs["backend"] = "OpenCL"
-        end
-        @test !did_precompile()
     end
 end
