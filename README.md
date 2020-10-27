@@ -1,37 +1,66 @@
 # Preferences
 
-`Preferences` supports embedding a simple `Dict` of metadata for a package on a per-project basis.
-These preferences allow for packages to set simple, persistent pieces of data, and optionally trigger recompilation of the package when the preferences change, to allow for customization of package behavior at compile-time.
+The `Preferences` package provides a convenient, integrated way for packages to store configuration switches to persistent TOML files, and use those pieces of information at both run time and compile time.
+This enables the user to modify the behavior of a package, and have that choice reflected in everything from run time algorithm choice to code generation at compile time.
+Preferences are stored as TOML dictionaries and are, by default, stored within a `(Julia)LocalPreferences.toml` file next to the currently-active project.
+If a preference is "exported", it is instead stored within the `(Julia)Project.toml` instead.
+The intention is to allow shared projects to contain shared preferences, while allowing for users themselves to override those preferences with their own settings in the `LocalPreferences.toml` file, which should be `.gitignore`d as the name implies.
 
-## API Overview
+Preferences can be set with depot-wide defaults; if package `Foo` is installed within your global environment and it has preferences set, these preferences will apply as long as your global environment is part of your [`LOAD_PATH`](https://docs.julialang.org/en/v1/manual/code-loading/#Environment-stacks).
+Preferences in environments higher up in the environment stack get overridden by the more proximal entries in the load path, ending with the currently active project.
+This allows depot-wide preference defaults to exist, with active projects able to merge or even completely overwrite these inherited preferences.
+See the docstring for `set_preferences!()` for the full details of how to set preferences to allow or disallow merging.
 
-`Preferences` are used primarily through the `@load_preferences`, `@save_preferences` and `@modify_preferences` macros.
-These macros will auto-detect the UUID of the calling package, throwing an error if the calling module does not belong to a package.
-The function forms can be used to load, save or modify preferences belonging to another package.
+Preferences that are accessed during compilation are automatically marked as compile-time preferences, and any change recorded to these preferences will cause the Julia compiler to recompile any cached precompilation `.ji` files for that module.
+This allows preferences to be used to influence code generation.
+When your package sets a compile-time preference, it is usually best to suggest to the user that they should restart Julia, to allow recompilation to occur.
 
-Example usage:
+## API
+
+Preferences use is very simple; it is all based around two functions (which each have convenience macros): `@set_preferences!()` and `@load_preference()`.
+
+* `@load_preference(key, default = nothing)`: This loads a preference named `key` for the current package.  If no such preference is found, it returns `default`.
+
+* `@set_preferences!(pairs...)`: This allows setting multiple preferences at once as pairs.
+
+To illustrate the usage, we show a toy module, taken directly from this package's tests:
 
 ```julia
-using Preferences
+module UsesPreferences
 
-function get_preferred_backend()
-    prefs = @load_preferences()
-    return get(prefs, "backend", "native")
+function set_backend(new_backend::String)
+    if !(new_backend in ("OpenCL", "CUDA", "jlFPGA"))
+        throw(ArgumentError("Invalid backend: \"$(new_backend)\""))
+    end
+
+    # Set it in our runtime values, as well as saving it to disk
+    @set_preferences!("backend" => new_backend)
+    @info("New backend set; restart your Julia session for this change to take effect!")
 end
 
-function set_backend(new_backend)
-    @modify_preferences!() do prefs
-        prefs["backend"] = new_backend
+const backend = @load_preference("backend", "OpenCL")
+
+# An example that helps us to prove that things are happening at compile-time
+function do_computation()
+    @static if backend == "OpenCL"
+        return "OpenCL is the best!"
+    elseif backend == "CUDA"
+        return "CUDA; so fast, so fresh!"
+    elseif backend == "jlFPGA"
+        return "The Future is Now, jlFPGA online!"
+    else
+        return nothing
     end
 end
+
+
+# A non-compiletime preference
+function set_username(username::String)
+    @set_preferences!("username" => username)
+end
+function get_username()
+    return @load_preference("username")
+end
+
+end # module UsesPreferences
 ```
-
-Preferences are stored within the first `Project.toml` that represents an environment that contains the given UUID, even as a transitive dependency.
-If no project that contains the given UUID is found, the preference is recorded in the `Project.toml` file of the currently-active project.
-The initial state for preferences is an empty dictionary, package authors that wish to have a default value set for their preferences should use the `get(prefs, key, default)` pattern as shown in the code example above.
-
-## Compile-Time Preferences
-
-If a preference must be known at compile-time, (and hence changing it should invalidate your package's precompiled `.ji` file) access of it should be done through the `Preferences.CompileTime` module.
-The exact same API is exposed, but the preferences will be stored within a separate dictionary from normal `Preferences`, and any change made to these preferences will cause your package to be recompiled the next time it is loaded.
-Packages that wish to use purely compile-time preferences can simply `using Preferences.CompileTime`, mixed usage will require compile-time usage to access functions and macros via `CompileTime.@load_preferences()`, etc...
