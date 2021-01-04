@@ -34,5 +34,11 @@ end
 function get_username()
     return @load_preference("username")
 end
+function has_username()
+    return @has_preference("username")
+end
+function delete_username()
+    @delete_preferences!("username")
+end
 
 end # module UsesPreferences

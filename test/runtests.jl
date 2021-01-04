@@ -73,7 +73,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         prefs = TOML.parsefile(local_prefs_toml)
         @test haskey(prefs, "UsesPreferences")
         @test prefs["UsesPreferences"]["backend"] == "CUDA"
-        
+
         # Now show that it forces recompilation
         did_precompile(output) = occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output)
         cuda_test = """
@@ -92,6 +92,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
             using UsesPreferences, Test, Preferences
             using Base: UUID
             @test load_preference($(repr(up_uuid)), "username") === nothing
+            @test !UsesPreferences.has_username()
             @test UsesPreferences.get_username() === nothing
             UsesPreferences.set_username("giordano")
             @test UsesPreferences.get_username() == "giordano"
@@ -99,11 +100,47 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
 
         # This does not cause a recompilation, and we can also get the username back again:
         username_test = """
-        using UsesPreferences, Test
+        using UsesPreferences, Test, Preferences
         @test UsesPreferences.get_username() == "giordano"
         """
         output = activate_and_run(up_path, username_test; env=Dict("JULIA_DEBUG" => "loading"))
         @test !did_precompile(output)
+
+        _prefs_delete_username = "delete_preferences!($(repr(up_uuid)), \"username\"; block_inheritance = false)"
+        _delete_username = "UsesPreferences.delete_username()"
+        _has_username = "@test UsesPreferences.has_username()"
+        _doesnt_have_username = "!@test UsesPreferences.has_username()"
+        _set_username = "UsesPreferences.set_username(\"giordano\")"
+        _get_username = "@test UsesPreferences.get_username() == \"giordano\""
+        _doesnt_have_set_get_username = """
+        $(_doesnt_have_username)
+        $(_set_username)
+        $(_get_username)
+        """
+        snippets = [
+            _prefs_delete_username,
+            _doesnt_have_set_get_username,
+            _has_username,
+            _delete_username,
+            _doesnt_have_set_get_username,
+            _has_username,
+            _prefs_delete_username,
+            _doesnt_have_set_get_username,
+            _has_username,
+            _prefs_delete_username,
+            _doesnt_have_set_get_username,
+            _has_username,
+        ]
+        for snippet in snippets
+            code = """
+            using UsesPreferences, Test, Preferences
+            using Base: UUID
+
+            $(snippet)
+            """
+            output = activate_and_run(up_path, username_test; env=Dict("JULIA_DEBUG" => "loading"))
+            @test !did_precompile(output)
+        end
     end
 end
 
