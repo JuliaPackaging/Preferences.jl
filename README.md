@@ -1,5 +1,14 @@
 # Preferences
 
+[![Continuous Integration][ci-img]][ci-url]
+[![Code Coverage][codecov-img]][codecov-url]
+
+[ci-url]:               https://github.com/JuliaPackaging/Preferences.jl/actions?query=workflow%3ACI
+[codecov-url]:          https://codecov.io/gh/JuliaPackaging/Preferences.jl
+
+[ci-img]:               https://github.com/JuliaPackaging/Preferences.jl/workflows/CI/badge.svg                     "Continuous Integration"
+[codecov-img]:          https://codecov.io/gh/JuliaPackaging/Preferences.jl/branch/master/graph/badge.svg           "Code Coverage"
+
 The `Preferences` package provides a convenient, integrated way for packages to store configuration switches to persistent TOML files, and use those pieces of information at both run time and compile time.
 This enables the user to modify the behavior of a package, and have that choice reflected in everything from run time algorithm choice to code generation at compile time.
 Preferences are stored as TOML dictionaries and are, by default, stored within a `(Julia)LocalPreferences.toml` file next to the currently-active project.
@@ -17,11 +26,15 @@ When your package sets a compile-time preference, it is usually best to suggest 
 
 ## API
 
-Preferences use is very simple; it is all based around two functions (which each have convenience macros): `@set_preferences!()` and `@load_preference()`.
+Preferences use is very simple; it is all based around four functions (which each have convenience macros): `@set_preferences!()`, `@load_preference()`, `@has_preference()`, and `@delete_preferences!()`.
 
 * `@load_preference(key, default = nothing)`: This loads a preference named `key` for the current package.  If no such preference is found, it returns `default`.
 
 * `@set_preferences!(pairs...)`: This allows setting multiple preferences at once as pairs.
+
+* `@has_preference(key)`: Returns true if the preference named `key` is found, and `false` otherwise.
+
+* `@delete_preferences!(keys...)`: Delete one or more preferences.
 
 To illustrate the usage, we show a toy module, taken directly from this package's tests:
 

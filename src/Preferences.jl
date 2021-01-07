@@ -4,7 +4,9 @@ using TOML
 using Base: UUID, TOMLCache
 
 export load_preference, @load_preference,
-       set_preferences!, @set_preferences!
+       has_preference, @has_preference,
+       set_preferences!, @set_preferences!,
+       delete_preferences!, @delete_preferences!
 
 include("utils.jl")
 
@@ -53,6 +55,31 @@ macro load_preference(key, default = nothing)
     end
 end
 
+"""
+    has_preference(uuid_or_module, key, default = nothing)
+
+Return `true` if the particular preference is found, and `false` otherwise.
+
+See the `has_preference` docstring for more details.
+"""
+function has_preference(uuid::UUID, key::String, default = nothing)
+    value = load_preference(uuid, key, nothing)
+    return !(value isa Nothing)
+end
+function has_preference(m::Module, key::String, default = nothing)
+    return has_preference(get_uuid(m), key, default)
+end
+
+"""
+    @has_preference(key)
+
+Convenience macro to call `has_preference()` for the current package.
+"""
+macro has_preference(key, default = nothing)
+    return quote
+        has_preference($(esc(get_uuid(__module__))), $(esc(key)), $(esc(default)))
+    end
+end
 
 """
     process_sentinel_values!(prefs::Dict)
@@ -169,7 +196,7 @@ will be exactly what was saved here.  If we wanted to re-enable inheritance from
 up in the chain, we could do the same but passing `missing` first.
 
 The `export_prefs` option determines whether the preferences being set should be stored
-within `LocalPreferences.toml` or `Project.toml`. 
+within `LocalPreferences.toml` or `Project.toml`.
 """
 function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=false, kwargs...)
     # Find the first `Project.toml` that has this UUID as a direct dependency
@@ -203,7 +230,7 @@ function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=fa
     target_toml = project_toml
     if !export_prefs
         target_toml = joinpath(dirname(project_toml), "LocalPreferences.toml")
-    end 
+    end
     return set_preferences!(target_toml, pkg_name, prefs...; kwargs...)
 end
 function set_preferences!(m::Module, prefs::Pair{String,<:Any}...; kwargs...)
@@ -220,6 +247,39 @@ so for setting the preferences in other packages, pending private dependencies.
 macro set_preferences!(prefs...)
     return quote
         set_preferences!($(esc(get_uuid(__module__))), $(esc(prefs...)), force=true)
+    end
+end
+
+"""
+    delete_preferences!(uuid_or_module, prefs::String...; block_inheritance::Bool = false, export_prefs=false, force=false)
+
+Deletes a series of preferences for the given UUID/Module, identified by the
+keys passed in as `prefs`.
+
+
+See the docstring for `set_preferences!`for more details.
+"""
+function delete_preferences!(u::UUID, pref_keys::String...; block_inheritance::Bool = false, kwargs...)
+    if block_inheritance
+        return set_preferences!(u::UUID, [k => nothing for k in pref_keys]...; kwargs...)
+    else
+        return set_preferences!(u::UUID, [k => missing for k in pref_keys]...; kwargs...)
+    end
+end
+function delete_preferences!(m::Module, pref_keys::String...; kwargs...)
+    return delete_preferences!(get_uuid(m), prefs...; kwargs...)
+end
+
+"""
+    @delete_preferences!(prefs...)
+
+Convenience macro to call `delete_preferences!()` for the current package.  Defaults to
+setting `force=true`, since a package should have full control over itself, but not
+so for deleting the preferences in other packages, pending private dependencies.
+"""
+macro delete_preferences!(prefs...)
+    return quote
+        delete_preferences!($(esc(get_uuid(__module__))), $(esc(prefs...)), force=true)
     end
 end
 
