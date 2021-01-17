@@ -25,7 +25,7 @@ jobs:
           - windows-latest
         arch:
           - x64
-          # - x86 # TODO: uncomment this line
+          - x86
         exclude:
           - os: macOS-latest
             arch: x86
