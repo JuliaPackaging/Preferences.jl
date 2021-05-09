@@ -9,7 +9,7 @@
 [ci-img]:               https://github.com/JuliaPackaging/Preferences.jl/workflows/CI/badge.svg                     "Continuous Integration"
 [codecov-img]:          https://codecov.io/gh/JuliaPackaging/Preferences.jl/branch/master/graph/badge.svg           "Code Coverage"
 
-The `Preferences` package provides a convenient, integrated way for packages to store configuration switches to persistent TOML files, and use those pieces of information at both run time and compile time.
+The `Preferences` package provides a convenient, integrated way for packages to store configuration switches to persistent TOML files, and use those pieces of information at both run time and compile time in Julia v1.6+.
 This enables the user to modify the behavior of a package, and have that choice reflected in everything from run time algorithm choice to code generation at compile time.
 Preferences are stored as TOML dictionaries and are, by default, stored within a `(Julia)LocalPreferences.toml` file next to the currently-active project.
 If a preference is "exported", it is instead stored within the `(Julia)Project.toml` instead.
@@ -23,6 +23,8 @@ See the docstring for `set_preferences!()` for the full details of how to set pr
 Preferences that are accessed during compilation are automatically marked as compile-time preferences, and any change recorded to these preferences will cause the Julia compiler to recompile any cached precompilation `.ji` files for that module.
 This allows preferences to be used to influence code generation.
 When your package sets a compile-time preference, it is usually best to suggest to the user that they should restart Julia, to allow recompilation to occur.
+
+Note that the package can be installed on Julia v1.0+ but is only functional on Julia v1.6+.
 
 ## API
 
