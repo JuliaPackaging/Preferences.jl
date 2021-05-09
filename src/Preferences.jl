@@ -1,11 +1,11 @@
 module Preferences
 
-using TOML
-using Base: UUID, TOMLCache
-
 if VERSION < v"1.6.0-DEV"
     error("Preferences.jl can only be used on Julia v1.6+!")
 end
+
+using TOML
+using Base: UUID, TOMLCache
 
 export load_preference, @load_preference,
        has_preference, @has_preference,
