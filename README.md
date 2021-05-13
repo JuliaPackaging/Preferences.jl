@@ -79,3 +79,22 @@ end
 
 end # module UsesPreferences
 ```
+
+## Conditional Loading
+
+To use `Preferences` with Julia 1.6 and later but falling back to a
+default value for older Julia versions, you can conditionally load
+`Preferences` like this:
+```
+@static if VERSION >= v"1.6"
+    using Preferences
+end
+
+@static if VERSION >= v"1.6"
+    preference = @load_preference("preference", "default")
+else
+    preference = "default"
+end
+```
+Note that these cannot be merged into a single `@static if`. Loading
+the package with `using Preferences` must be done on its own.
