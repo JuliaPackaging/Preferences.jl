@@ -271,7 +271,7 @@ function delete_preferences!(u::UUID, pref_keys::String...; block_inheritance::B
     end
 end
 function delete_preferences!(m::Module, pref_keys::String...; kwargs...)
-    return delete_preferences!(get_uuid(m), prefs...; kwargs...)
+    return delete_preferences!(get_uuid(m), pref_keys...; kwargs...)
 end
 
 """
