@@ -102,13 +102,16 @@ function process_sentinel_values!(prefs::Dict)
             # If this should add `k` to the `__clear__` list, do so, then remove `k`
             push!(clear_keys, k)
             delete!(prefs, k)
-        elseif prefs[k] === missing
-            # If this should clear out the mapping for `k`, do so, and drop it from `clear_keys`
-            delete!(prefs, k)
+        else
+            # `k` is not nothing, so drop it from `clear_keys`
             filter!(x -> x != k, clear_keys)
-        elseif isa(prefs[k], Dict)
-            # Recurse for nested dictionaries
-            prefs[k] = process_sentinel_values!(prefs[k])
+            if prefs[k] === missing
+                # If this should clear out the mapping for `k`, do so
+                delete!(prefs, k)
+            elseif isa(prefs[k], Dict)
+                # Recurse for nested dictionaries
+                prefs[k] = process_sentinel_values!(prefs[k])
+            end
         end
     end
     # Store the updated list of clear_keys
