@@ -63,6 +63,14 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
             @test UsesPreferences.backend == "OpenCL"
         """)
 
+        # Test clearing a preference (setting to `nothing`)
+        activate_and_run(up_path, """
+            using UsesPreferences
+            UsesPreferences.clear_backend()
+        """)
+        prefs = TOML.parsefile(local_prefs_toml)
+        @test prefs["UsesPreferences"]["__clear__"] == ["backend"]
+
         # Next, change a setting
         activate_and_run(up_path, """
             using UsesPreferences
@@ -73,6 +81,8 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         prefs = TOML.parsefile(local_prefs_toml)
         @test haskey(prefs, "UsesPreferences")
         @test prefs["UsesPreferences"]["backend"] == "CUDA"
+        # Setting a preference value should remove it from `__clear__`:
+        @test !haskey(prefs["UsesPreferences"], "__clear__")
 
         # Now show that it forces recompilation
         did_precompile(output) = occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output)

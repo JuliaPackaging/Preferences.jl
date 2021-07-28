@@ -11,6 +11,11 @@ function set_backend(new_backend::String)
     @info("New backend set; restart your Julia session for this change to take effect!")
 end
 
+function clear_backend()
+    @set_preferences!("backend" => nothing)
+    @info("Backend cleared; restart your Julia session for this change to take effect!")
+end
+
 const backend = @load_preference("backend", "OpenCL")
 
 # An example that helps us to prove that things are happening at compile-time
