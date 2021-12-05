@@ -253,7 +253,7 @@ so for setting the preferences in other packages, pending private dependencies.
 """
 macro set_preferences!(prefs...)
     return quote
-        set_preferences!($(esc(get_uuid(__module__))), $(esc(prefs...)), force=true)
+        set_preferences!($(esc(get_uuid(__module__))), $(map(esc,prefs)...), force=true)
     end
 end
 
@@ -286,7 +286,7 @@ so for deleting the preferences in other packages, pending private dependencies.
 """
 macro delete_preferences!(prefs...)
     return quote
-        delete_preferences!($(esc(get_uuid(__module__))), $(esc(prefs...)), force=true)
+        delete_preferences!($(esc(get_uuid(__module__))), $(map(esc,prefs)...), force=true)
     end
 end
 

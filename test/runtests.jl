@@ -69,7 +69,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
             UsesPreferences.clear_backend()
         """)
         prefs = TOML.parsefile(local_prefs_toml)
-        @test prefs["UsesPreferences"]["__clear__"] == ["backend"]
+        @test prefs["UsesPreferences"]["__clear__"] == ["backend", "extra"]
 
         # Next, change a setting
         activate_and_run(up_path, """
