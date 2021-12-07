@@ -7,12 +7,12 @@ function set_backend(new_backend::String)
     end
 
     # Set it in our runtime values, as well as saving it to disk
-    @set_preferences!("backend" => new_backend)
+    @set_preferences!("backend" => new_backend, "extra" => "tada")
     @info("New backend set; restart your Julia session for this change to take effect!")
 end
 
 function clear_backend()
-    @set_preferences!("backend" => nothing)
+    @set_preferences!("backend" => nothing, "extra" => nothing)
     @info("Backend cleared; restart your Julia session for this change to take effect!")
 end
 
