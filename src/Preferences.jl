@@ -24,7 +24,7 @@ list the given UUID as a direct dependency.
 Most users should use the `@load_preference` convenience macro which auto-determines the
 calling `Module`.
 """
-function load_preference(uuid::UUID, key::String, default = nothing)
+function load_preference(uuid::UUID, key::String, @nospecialize(default = nothing))
     # Re-use definition in `base/loading.jl` so as to not repeat code.
     d = Base.get_preferences(uuid)
     if currently_compiling()
@@ -289,5 +289,10 @@ macro delete_preferences!(prefs...)
         delete_preferences!($(esc(get_uuid(__module__))), $(map(esc,prefs)...), force=true)
     end
 end
+
+# Precompilation to reduce latency (https://github.com/JuliaLang/julia/pull/43990#issuecomment-1025692379)
+get_uuid(Preferences)
+currently_compiling()
+precompile(load_preference, (Base.UUID, String, Nothing))
 
 end # module Preferences
