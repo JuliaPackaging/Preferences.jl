@@ -60,18 +60,18 @@ macro load_preference(key, default = nothing)
 end
 
 """
-    has_preference(uuid_or_module, key, default = nothing)
+    has_preference(uuid_or_module, key)
 
 Return `true` if the particular preference is found, and `false` otherwise.
 
 See the `has_preference` docstring for more details.
 """
-function has_preference(uuid::UUID, key::String, default = nothing)
+function has_preference(uuid::UUID, key::String)
     value = load_preference(uuid, key, nothing)
     return !(value isa Nothing)
 end
-function has_preference(m::Module, key::String, default = nothing)
-    return has_preference(get_uuid(m), key, default)
+function has_preference(m::Module, key::String)
+    return has_preference(get_uuid(m), key)
 end
 
 """
@@ -79,9 +79,9 @@ end
 
 Convenience macro to call `has_preference()` for the current package.
 """
-macro has_preference(key, default = nothing)
+macro has_preference(key)
     return quote
-        has_preference($(esc(get_uuid(__module__))), $(esc(key)), $(esc(default)))
+        has_preference($(esc(get_uuid(__module__))), $(esc(key)))
     end
 end
 
