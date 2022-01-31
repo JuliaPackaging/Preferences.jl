@@ -293,6 +293,6 @@ end
 # Precompilation to reduce latency (https://github.com/JuliaLang/julia/pull/43990#issuecomment-1025692379)
 get_uuid(Preferences)
 currently_compiling()
-precompile(load_preference, (Base.UUID, String, Nothing))
+# precompile(load_preference, (Base.UUID, String, Nothing))
 
 end # module Preferences
