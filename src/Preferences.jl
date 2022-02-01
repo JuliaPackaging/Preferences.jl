@@ -24,24 +24,12 @@ list the given UUID as a direct dependency.
 Most users should use the `@load_preference` convenience macro which auto-determines the
 calling `Module`.
 """
-function load_preference(uuid::UUID, key::String, @nospecialize(default = nothing))
+function load_preference(uuid::UUID, key::String, default = nothing)
     # Re-use definition in `base/loading.jl` so as to not repeat code.
     d = Base.get_preferences(uuid)
     if currently_compiling()
         Base.record_compiletime_preference(uuid, key)
     end
-    # Drop any nested `__clear__` keys:
-    function drop_clears(data::Dict)
-        delete!(data, "__clear__")
-        for (k, v) in data
-            if isa(v, Dict)
-                drop_clears(v)
-            end
-        end
-        return data
-    end
-    drop_clears(x) = x
-
     return drop_clears(get(d, key, default))
 end
 function load_preference(m::Module, key::String, default = nothing)
@@ -293,6 +281,9 @@ end
 # Precompilation to reduce latency (https://github.com/JuliaLang/julia/pull/43990#issuecomment-1025692379)
 get_uuid(Preferences)
 currently_compiling()
-# precompile(load_preference, (Base.UUID, String, Nothing))
+precompile(Tuple{typeof(drop_clears), Any})
+if hasmethod(Base.BinaryPlatforms.Platform, (String, String, Dict{String}))
+    precompile(load_preference, (Base.UUID, String, Nothing))
+end
 
 end # module Preferences
