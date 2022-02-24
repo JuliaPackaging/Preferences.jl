@@ -27,3 +27,14 @@ function find_first_project_with_uuid(uuid::UUID)
     end
     return (nothing, nothing)
 end
+
+# Drop any nested `__clear__` keys:
+function drop_clears(@nospecialize(data))
+    if isa(data, Dict{String,Any})
+        delete!(data, "__clear__")
+        for (_, v) in data
+            drop_clears(v)
+        end
+    end
+    return data
+end

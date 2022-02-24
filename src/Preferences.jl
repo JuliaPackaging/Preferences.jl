@@ -30,18 +30,6 @@ function load_preference(uuid::UUID, key::String, default = nothing)
     if currently_compiling()
         Base.record_compiletime_preference(uuid, key)
     end
-    # Drop any nested `__clear__` keys:
-    function drop_clears(data::Dict)
-        delete!(data, "__clear__")
-        for (k, v) in data
-            if isa(v, Dict)
-                drop_clears(v)
-            end
-        end
-        return data
-    end
-    drop_clears(x) = x
-
     return drop_clears(get(d, key, default))
 end
 function load_preference(m::Module, key::String, default = nothing)
@@ -288,6 +276,14 @@ macro delete_preferences!(prefs...)
     return quote
         delete_preferences!($(esc(get_uuid(__module__))), $(map(esc,prefs)...), force=true)
     end
+end
+
+# Precompilation to reduce latency (https://github.com/JuliaLang/julia/pull/43990#issuecomment-1025692379)
+get_uuid(Preferences)
+currently_compiling()
+precompile(Tuple{typeof(drop_clears), Any})
+if hasmethod(Base.BinaryPlatforms.Platform, (String, String, Dict{String}))
+    precompile(load_preference, (Base.UUID, String, Nothing))
 end
 
 end # module Preferences
