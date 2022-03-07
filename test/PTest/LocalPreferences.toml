@@ -1,0 +1,2 @@
+[PTest]
+pkg_copied = "Local preference copied over by Pkg.jl"
