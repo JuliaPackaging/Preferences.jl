@@ -220,11 +220,20 @@ function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=fa
         end
     end
 
-    # Finally, save the preferences out to either `Project.toml` or `Preferences.toml`
-    # keyed under that `pkg_name`:
+    # Finally, save the preferences out to either `Project.toml` or
+    # `(Julia)LocalPreferences.toml` keyed under that `pkg_name`:
     target_toml = project_toml
     if !export_prefs
+        # We'll default to calling it `LocalPreferneces.toml`
         target_toml = joinpath(dirname(project_toml), "LocalPreferences.toml")
+
+        # But if there's already a `JuliaLocalPreferneces.toml`, use that.
+        for pref_name in Base.preferences_names
+            maybe_file = joinpath(dirname(project_toml), pref_name)
+            if isfile(maybe_file)
+                target_toml = maybe_file
+            end
+        end
     end
     return set_preferences!(target_toml, pkg_name, prefs...; kwargs...)
 end

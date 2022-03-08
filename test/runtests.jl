@@ -274,3 +274,17 @@ end
         end
     end
 end
+
+using Pkg, SHA
+@testset "Pkg.test()" begin
+    # Let's test that using `Pkg.test()` on a fake little package works as expected
+    # This package will both expect to read a preference that was defined in the
+    # package's Project.toml and in a LocalPreferneces.toml, as well as attempt to
+    # set and load preferences during the test.  We'll even "export" preferences
+    # during the test and assert that the Project.toml file remains unchanged.
+    project_hash = open(io -> SHA.sha256(io), joinpath(@__DIR__, "PTest", "Project.toml"))
+    Pkg.activate(joinpath(@__DIR__, "PTest")) do
+        Pkg.test()
+    end
+    @test project_hash == open(io -> SHA.sha256(io), joinpath(@__DIR__, "PTest", "Project.toml"))
+end
