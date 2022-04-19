@@ -154,7 +154,9 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
     end
 end
 
-# Load UsesPreferences, as we need it loaded for some set/get trickery below
+# Load UsesPreferences, as we need it loaded to satisfy `set_preferences!()` below,
+# otherwise it can't properly map from a UUID to a name when installing into a package
+# that doesn't have UsesPreferences added yet.
 activate(up_path) do
     eval(:(using UsesPreferences))
 end
@@ -194,7 +196,8 @@ end
                 @test load_preference(up_uuid, "location") == "outer_local"
             end
 
-            # Ensure that we can load the preferences the same even if we exit the `activate()`
+            # Ensure that we can load the preferences even if we exit the `activate()`
+            # because `env_dir` is a part of `LOAD_PATH`.
             @test load_preference(up_uuid, "location") == "outer_local"
 
             # Next, we're going to create a lower environment, add some preferences there, and ensure
@@ -270,6 +273,36 @@ end
                 @test nested["nested2"]["a"] == "foo"
                 @test nested["nested2"]["b"] == 2
                 @test nested["leaf"] == "world"
+            end
+
+            # Test that setting a preference for UsesPreferences in a project that does
+            # not contain UsesPreferences adds the dependency if `active_project_only`
+            # is set, which is the default:
+            mktempdir() do empty_project_dir
+                touch(joinpath(empty_project_dir, "Project.toml"))
+                activate(empty_project_dir) do
+                    # This will search up the environment stack for a project that contains
+                    # the UsesPreferences UUID and insert the preference there.
+                    set_preferences!(up_uuid, "location" => "overridden_outer_local"; active_project_only=false, force=true)
+                    prefs = Base.parsed_toml(joinpath(env_dir, "LocalPreferences.toml"))
+                    @test prefs["UsesPreferences"]["location"] == "overridden_outer_local"
+
+                    # This will set it in the currently active project, and add `UsesPreferences`
+                    # as a dependency under the `"extras"` section
+                    set_preferences!(up_uuid, "location" => "empty_inner_local"; active_project_only=true)
+                    prefs = Base.parsed_toml(joinpath(empty_project_dir, "LocalPreferences.toml"))
+                    @test prefs["UsesPreferences"]["location"] == "empty_inner_local"
+                    proj = Base.parsed_toml(joinpath(empty_project_dir, "Project.toml"))
+                    @test haskey(proj, "extras")
+                    @test haskey(proj["extras"], "UsesPreferences")
+                    @test proj["extras"]["UsesPreferences"] == string(up_uuid)
+
+                    # Now that UsesPreferences has been added to the empty project, this will
+                    # set the preference in the local project since it is found in there first.
+                    set_preferences!(up_uuid, "location" => "still_empty_inner_local"; active_project_only=false, force=true)
+                    prefs = Base.parsed_toml(joinpath(empty_project_dir, "LocalPreferences.toml"))
+                    @test prefs["UsesPreferences"]["location"] == "still_empty_inner_local"
+                end
             end
         end
     end
