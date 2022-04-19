@@ -164,8 +164,8 @@ end
     # Ensure there is no LocalPreferences.toml file in UsesPreferences:
     local_prefs_toml = joinpath(up_path, "LocalPreferences.toml")
     rm(local_prefs_toml; force=true)
-    with_temp_depot() do
-        mktempdir() do env_dir
+    with_temp_depot() do; mktempdir() do env_dir
+        try
             # We're going to create a higher environment
             push!(Base.LOAD_PATH, env_dir)
 
@@ -304,8 +304,28 @@ end
                     @test prefs["UsesPreferences"]["location"] == "still_empty_inner_local"
                 end
             end
+        finally
+            # Remove the `env_dir` we added
+            pop!(Base.LOAD_PATH)
         end
-    end
+    end; end
+end
+
+@testset "Issue #34" begin
+    with_temp_depot() do; mktempdir() do dir
+        activate(dir) do
+            push!(Base.LOAD_PATH, dir)
+            try
+                Preferences.set_preferences!(up_uuid, "location" => "exists")
+                proj = Base.parsed_toml(joinpath(dir, "Project.toml"))
+                @test haskey(proj, "extras")
+                @test haskey(proj["extras"], "UsesPreferences")
+                @test proj["extras"]["UsesPreferences"] == string(up_uuid)
+            finally
+                pop!(Base.LOAD_PATH)
+            end
+        end
+    end; end
 end
 
 using Pkg, SHA
