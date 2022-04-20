@@ -246,6 +246,13 @@ function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=fa
             project_toml = Base.active_project()
         end
     end
+
+    # X-ref: https://github.com/JuliaPackaging/Preferences.jl/issues/34
+    # We need to handle the edge cases where `project_toml` doesn't exist yet
+    if !isfile(project_toml)
+        touch(project_toml)
+    end
+
     pkg_name = something(
         Base.get_uuid_name(project_toml, u),
         get_pkg_name_from_env(),
