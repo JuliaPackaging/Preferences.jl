@@ -148,7 +148,8 @@ function set_preferences!(target_toml::String, pkg_name::String, pairs::Pair{Str
 end
 
 """
-    set_preferences!(uuid_or_module, prefs::Pair{String,Any}...; export_prefs=false, force=false)
+    set_preferences!(uuid_or_module, prefs::Pair{String,Any}...; export_prefs=false,
+                     active_project_only=true, force=false)
 
 Sets a series of preferences for the given UUID/Module, identified by the pairs passed in
 as `prefs`.  Preferences are loaded from `Project.toml` and `LocalPreferences.toml` files
@@ -176,7 +177,7 @@ special values that can be passed to `set_preferences!()`: `nothing` and `missin
   preference key to a `__clear__` list in the `LocalPreferences.toml` file, that will
   prevent any preferences from leaking through from higher environments.
 
-Note that the behavior of `missing` and `nothing` is both similar (they both clear the
+Note that the behaviors of `missing` and `nothing` are both similar (they both clear the
 current settings) and diametrically opposed (one allows inheritance of preferences, the
 other does not).  They can also be composed with a normal `set_preferences!()` call:
 
@@ -192,24 +193,28 @@ up in the chain, we could do the same but passing `missing` first.
 
 The `export_prefs` option determines whether the preferences being set should be stored
 within `LocalPreferences.toml` or `Project.toml`.
+
+The `active_project_only` flag ensures that the preference is set within the currently
+active project (as determined by `Base.active_project()`), and if the target package is
+not listed as a dependency, it is added under the `extras` section.  Without this flag
+set, if the target package is not found in the active project, `set_preferences!()` will
+search up the load path for an environment that does contain that module, setting the
+preference in the first one it finds.  If none are found, it falls back to setting the
+preference in the active project and adding it as an extra dependency.
 """
-function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=false, kwargs...)
-    # Find the first `Project.toml` that has this UUID as a direct dependency
-    project_toml, pkg_name = find_first_project_with_uuid(u)
-    if project_toml === nothing && pkg_name === nothing
-        # If we couldn't find one, we're going to use `active_project()`
-        project_toml = Base.active_project()
-
-        # And we're going to need to add this UUID as an "extras" dependency:
-        # We're going to assume you want to name this this dependency in the
-        # same way as it's been loaded:
-        pkg_uuid_matches = filter(d -> d.uuid == u, keys(Base.loaded_modules))
-        if isempty(pkg_uuid_matches)
-            error("Cannot set preferences of an unknown package that is not loaded!")
+function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=false,
+                          active_project_only::Bool=true, kwargs...)
+    # If we try to add preferences for a dependency, we need to make sure
+    # it is listed as a dependency, so if it's not, we'll add it in the
+    # "extras" section in the `Project.toml`.
+    function ensure_dep_added(project_toml, uuid, pkg_name)
+        # If this project already has a mapping for this UUID, early-exit
+        if Base.get_uuid_name(project_toml, uuid) !== nothing
+            return
         end
-        pkg_name = first(pkg_uuid_matches).name
 
-        # Read in the project, add the deps, write it back out!
+        # Otherwise, insert it into `extras`, creating the section if
+        # it doesn't already exist.
         project = Base.parsed_toml(project_toml)
         if !haskey(project, "extras")
             project["extras"] = Dict{String,Any}()
@@ -218,7 +223,40 @@ function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=fa
         open(project_toml, "w") do io
             TOML.print(io, project; sorted=true)
         end
+        return project_toml, pkg_name
     end
+
+    # Get the pkg name from the current environment if we can't find a
+    # mapping for it in any environment block.  This assumes that the name
+    # mapping should be the same as what was used in when it was loaded.
+    function get_pkg_name_from_env()
+        pkg_uuid_matches = filter(d -> d.uuid == u, keys(Base.loaded_modules))
+        if isempty(pkg_uuid_matches)
+            return nothing
+        end
+        return first(pkg_uuid_matches).name
+    end
+
+
+    if active_project_only
+        project_toml = Base.active_project()
+    else
+        project_toml, pkg_name = find_first_project_with_uuid(u)
+        if project_toml === nothing && pkg_name === nothing
+            project_toml = Base.active_project()
+        end
+    end
+    pkg_name = something(
+        Base.get_uuid_name(project_toml, u),
+        get_pkg_name_from_env(),
+        Some(nothing),
+    )
+    # This only occurs if we couldn't find any hint of the given pkg
+    if pkg_name === nothing
+        error("Cannot set preferences of an unknown package that is not loaded!")
+    end
+
+    ensure_dep_added(project_toml, u, pkg_name)
 
     # Finally, save the preferences out to either `Project.toml` or
     # `(Julia)LocalPreferences.toml` keyed under that `pkg_name`:
