@@ -21,7 +21,7 @@ Load a particular preference from the `Preferences.toml` file, shallowly merging
 as it walks the hierarchy of load paths, loading preferences from all environments that
 list the given UUID as a direct dependency.
 
-Most users should use the `@load_preference` convenience macro which auto-determines the
+Most users should use the [`@load_preference`](@ref) convenience macro which auto-determines the
 calling `Module`.
 """
 function load_preference(uuid::UUID, key::String, default = nothing)
@@ -39,7 +39,7 @@ end
 """
     @load_preference(key)
 
-Convenience macro to call `load_preference()` for the current package.
+Convenience macro to call [`load_preference()`](@ref) for the current package.
 """
 macro load_preference(key, default = nothing)
     return quote
@@ -51,8 +51,6 @@ end
     has_preference(uuid_or_module, key)
 
 Return `true` if the particular preference is found, and `false` otherwise.
-
-See the `has_preference` docstring for more details.
 """
 function has_preference(uuid::UUID, key::String)
     value = load_preference(uuid, key, nothing)
@@ -65,7 +63,7 @@ end
 """
     @has_preference(key)
 
-Convenience macro to call `has_preference()` for the current package.
+Convenience macro to call [`has_preference()`](@ref) for the current package.
 """
 macro has_preference(key)
     return quote
@@ -77,7 +75,7 @@ end
     process_sentinel_values!(prefs::Dict)
 
 Recursively search for preference values that end in `nothing` or `missing` leaves,
-which we handle specially, see the `set_preferences!()` docstring for more detail.
+which we handle specially, see the [`set_preferences!()`](@ref) docstring for more detail.
 """
 function process_sentinel_values!(prefs::Dict)
     # Need to widen `prefs` so that when we try to assign to `__clear__` below,
@@ -289,7 +287,7 @@ end
 """
     @set_preferences!(prefs...)
 
-Convenience macro to call `set_preferences!()` for the current package.  Defaults to
+Convenience macro to call [`set_preferences!()`](@ref) for the current package.  Defaults to
 setting `force=true`, since a package should have full control over itself, but not
 so for setting the preferences in other packages, pending private dependencies.
 """
@@ -305,8 +303,7 @@ end
 Deletes a series of preferences for the given UUID/Module, identified by the
 keys passed in as `prefs`.
 
-
-See the docstring for `set_preferences!`for more details.
+See the docstring for [`set_preferences!`](@ref) for more details.
 """
 function delete_preferences!(u::UUID, pref_keys::String...; block_inheritance::Bool = false, kwargs...)
     if block_inheritance
@@ -322,7 +319,7 @@ end
 """
     @delete_preferences!(prefs...)
 
-Convenience macro to call `delete_preferences!()` for the current package.  Defaults to
+Convenience macro to call [`delete_preferences!()`](@ref) for the current package.  Defaults to
 setting `force=true`, since a package should have full control over itself, but not
 so for deleting the preferences in other packages, pending private dependencies.
 """
