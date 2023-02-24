@@ -32,7 +32,7 @@ function load_preference(uuid::UUID, key::String, default = nothing)
     end
     return drop_clears(get(d, key, default))
 end
-function load_preference(m::Module, key::String, default = nothing)
+function load_preference(m::Union{Module,String}, key::String, default = nothing)
     return load_preference(get_uuid(m), key, default)
 end
 
@@ -58,7 +58,7 @@ function has_preference(uuid::UUID, key::String)
     value = load_preference(uuid, key, nothing)
     return !(value isa Nothing)
 end
-function has_preference(m::Module, key::String)
+function has_preference(m::Union{Module,String}, key::String)
     return has_preference(get_uuid(m), key)
 end
 
@@ -282,7 +282,7 @@ function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=fa
     end
     return set_preferences!(target_toml, pkg_name, prefs...; kwargs...)
 end
-function set_preferences!(m::Module, prefs::Pair{String,<:Any}...; kwargs...)
+function set_preferences!(m::Union{Module,String}, prefs::Pair{String,<:Any}...; kwargs...)
     return set_preferences!(get_uuid(m), prefs...; kwargs...)
 end
 
@@ -315,7 +315,7 @@ function delete_preferences!(u::UUID, pref_keys::String...; block_inheritance::B
         return set_preferences!(u::UUID, [k => missing for k in pref_keys]...; kwargs...)
     end
 end
-function delete_preferences!(m::Module, pref_keys::String...; kwargs...)
+function delete_preferences!(m::Union{Module,String}, pref_keys::String...; kwargs...)
     return delete_preferences!(get_uuid(m), pref_keys...; kwargs...)
 end
 

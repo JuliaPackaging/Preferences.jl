@@ -10,6 +10,21 @@ function get_uuid(m::Module)
     return uuid
 end
 
+function get_uuid(name::String)
+    for env in Base.load_path()
+        project_toml = Base.env_project_file(env)
+        if !isa(project_toml, String)
+            continue
+        end
+        pkg = Base.project_deps_get(project_toml, name)
+        if pkg === nothing
+            continue
+        end
+        return pkg.uuid
+    end
+    throw(ArgumentError("Package $name is not a dependency of your current environment!"))
+end
+
 function find_first_project_with_uuid(uuid::UUID)
     # Find first element in `Base.load_path()` that contains this UUID
     # This code should look similar to the search in `Base.get_preferences()`
