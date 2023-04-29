@@ -1,39 +1,59 @@
 # Helper function to detect if we're currently compiling
 currently_compiling() = ccall(:jl_generating_output, Cint, ()) != 0
 
-"""
-    Preferences.uuid_cache::Dict{Module,UUID}
+@doc """
+    Preferences.main_uuid::Union{Nothing,UUID} = nothing
 
-Runtime cache to store the UUIDs of root modules.
-Users can make Preferences.jl to work for non-package modules by manually adding a proper
-entry to this cache. It may be useful for debugging or analysis purposes.
+If this global variable is set to `UUID` object, Preferences.jl will use it as a temporary
+package UUID for the `Main` module and its children modules.
+This allows us to use the configurations for a package for non-package modules,
+and may be useful for debugging or analyzing a package code.
 
 ```julia
-julia> using Preferences, Pkg
+julia> using Preferences, Pkg, PrecompileTools
 
-julia> Preferences.uuid_cache[Main] =
-           Pkg.project().dependencies["XXX"]
-
-julia> include("src/XXX.jl") # `Main.XXX` can load configurations for XXX.jl
+julia> try
+           # Run the package code of XXX.jl as a top-level script and check
+           # what gets precompiled while loading the configurations for XXX.jl:
+           Preferences.main_uuid = Pkg.project().dependencies["XXX"]
+           PrecompileTools.verbose[] = true
+           include("src/XXX.jl")
+       finally
+           Preferences.main_uuid = nothing
+           PrecompileTools.verbose[] = false
+       end
 ```
 
 !!! warning
-    Improper manipulation on this cache may cause unexpected behaviors.
+    Improper manipulation on this variable may cause unexpected behaviors.
     Use with care and only as a last resort if absolutely required.
 """
+@static if VERSION ≥ v"1.8"
+    global main_uuid::Union{Nothing,UUID} = nothing
+else
+    global main_uuid = nothing
+end
+
 const uuid_cache = Dict{Module,UUID}()
 
 # Helper function to get the UUID of a module, throwing an error if it can't.
 function get_uuid(m::Module)
-    rootm = Base.moduleroot(m)
-    if haskey(uuid_cache, rootm)
-        return uuid_cache[rootm]
+    if haskey(uuid_cache, m)
+        return uuid_cache[m]
+    elseif parentmodule(m) !== m
+        # traverse up the module hierarchy while caching the results
+        return uuid_cache[m] = get_uuid(parentmodule(m))
+    elseif m === Main && main_uuid !== nothing
+        # load a specified package configuration for running script
+        return main_uuid::UUID
+    else
+        # get package UUID
+        uuid = Base.PkgId(m).uuid
+        if uuid === nothing
+            throw(ArgumentError("Module $(m) does not correspond to a loaded package!"))
+        end
+        return uuid_cache[m] = uuid
     end
-    uuid = Base.PkgId(m).uuid
-    if uuid === nothing
-        throw(ArgumentError("Module $(m) does not correspond to a loaded package!"))
-    end
-    return uuid_cache[rootm] = uuid
 end
 
 function find_first_project_with_uuid(uuid::UUID)
