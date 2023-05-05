@@ -2,7 +2,7 @@
 currently_compiling() = ccall(:jl_generating_output, Cint, ()) != 0
 
 @doc """
-    Preferences.main_uuid::Union{Nothing,UUID} = nothing
+    Preferences.main_uuid::Ref{Union{Nothing,UUID}}
 
 If this global variable is set to `UUID` object, Preferences.jl will use it as a temporary
 package UUID for the `Main` module and its children modules.
@@ -15,11 +15,11 @@ julia> using Preferences, Pkg, PrecompileTools
 julia> try
            # Run the package code of XXX.jl as a top-level script and check
            # what gets precompiled while loading the configurations for XXX.jl:
-           Preferences.main_uuid = Pkg.project().dependencies["XXX"]
+           Preferences.main_uuid[] = Pkg.project().dependencies["XXX"]
            PrecompileTools.verbose[] = true
            include("src/XXX.jl")
        finally
-           Preferences.main_uuid = nothing
+           Preferences.main_uuid[] = nothing
            PrecompileTools.verbose[] = false
        end
 ```
@@ -28,11 +28,7 @@ julia> try
     Improper manipulation on this variable may cause unexpected behaviors.
     Use with care and only as a last resort if absolutely required.
 """
-@static if VERSION ≥ v"1.8"
-    global main_uuid::Union{Nothing,UUID} = nothing
-else
-    global main_uuid = nothing
-end
+const main_uuid = Ref{Union{Nothing,UUID}}(nothing)
 
 const uuid_cache = Dict{Module,UUID}()
 
@@ -43,9 +39,9 @@ function get_uuid(m::Module)
     elseif parentmodule(m) !== m
         # traverse up the module hierarchy while caching the results
         return uuid_cache[m] = get_uuid(parentmodule(m))
-    elseif m === Main && main_uuid !== nothing
+    elseif m === Main && main_uuid[] !== nothing
         # load a specified package configuration for running script
-        return main_uuid::UUID
+        return main_uuid[]::UUID
     else
         # get package UUID
         uuid = Base.PkgId(m).uuid
