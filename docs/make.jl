@@ -44,7 +44,8 @@ makedocs(;
         "Home" => "index.md",
         "Reference" => "reference.md",
         "License" => "license.md"
-    ]
+    ],
+    warnonly = [:missing_docs], # we show all exported docstrings and are ok with omitting non-exported ones
 )
 
 # Deploy docs
