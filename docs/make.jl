@@ -28,7 +28,7 @@ open(joinpath(@__DIR__, "src", "license.md"), "w") do io
   println(io, "# License")
   println(io, "")
   for line in eachline(joinpath(dirname(@__DIR__), "LICENSE.md"))
-    println(io, "> ", line)
+    println(io, line)
   end
 end
 

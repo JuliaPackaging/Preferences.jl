@@ -2,15 +2,9 @@
 
 [![Docs-stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliapackaging.github.io/Preferences.jl/stable)
 [![Docs-dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliapackaging.github.io/Preferences.jl/dev)
-[![Continuous Integration][ci-img]][ci-url]
-[![Code Coverage][codecov-img]][codecov-url]
+[![Continuous Integration](https://github.com/JuliaPackaging/Preferences.jl/workflows/CI/badge.svg)](https://github.com/JuliaPackaging/Preferences.jl/actions?query=workflow%3ACI)
+[![Code Coverage](https://codecov.io/gh/JuliaPackaging/Preferences.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaPackaging/Preferences.jl)
 [![License: MIT](https://img.shields.io/badge/License-MIT-success.svg)](https://opensource.org/licenses/MIT)
-
-[ci-url]:               https://github.com/JuliaPackaging/Preferences.jl/actions?query=workflow%3ACI
-[codecov-url]:          https://codecov.io/gh/JuliaPackaging/Preferences.jl
-
-[ci-img]:               https://github.com/JuliaPackaging/Preferences.jl/workflows/CI/badge.svg                     "Continuous Integration"
-[codecov-img]:          https://codecov.io/gh/JuliaPackaging/Preferences.jl/branch/master/graph/badge.svg           "Code Coverage"
 
 The `Preferences` package provides a convenient, integrated way for packages to store configuration switches to persistent TOML files, and use those pieces of information at both run time and compile time in Julia v1.6+.
 This enables the user to modify the behavior of a package, and have that choice reflected in everything from run time algorithm choice to code generation at compile time.
