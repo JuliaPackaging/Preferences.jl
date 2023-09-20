@@ -8,7 +8,7 @@ on:
   pull_request:
 
 jobs:
-  build:
+  build-docs:
     permissions:
       contents: write
       statuses: write
