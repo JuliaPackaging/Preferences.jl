@@ -1,7 +1,10 @@
-# Preferences
+# Preferences.jl
 
+[![Docs-stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliapackaging.github.io/Preferences.jl/stable)
+[![Docs-dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliapackaging.github.io/Preferences.jl/dev)
 [![Continuous Integration][ci-img]][ci-url]
 [![Code Coverage][codecov-img]][codecov-url]
+[![License: MIT](https://img.shields.io/badge/License-MIT-success.svg)](https://opensource.org/licenses/MIT)
 
 [ci-url]:               https://github.com/JuliaPackaging/Preferences.jl/actions?query=workflow%3ACI
 [codecov-url]:          https://codecov.io/gh/JuliaPackaging/Preferences.jl
@@ -98,3 +101,12 @@ end
 ```
 Note that these cannot be merged into a single `@static if`. Loading
 the package with `using Preferences` must be done on its own.
+
+## Authors
+This repository was initiated by Elliot Saba
+([@staticfloat](https://github.com/staticfloat)) and continues to be maintained by him and
+other contributors.
+
+## License and contributing
+Preferences.jl is licensed under the MIT license (see [LICENSE.md](LICENSE.md)).
+Contributions by volunteers are welcome!
