@@ -52,22 +52,47 @@ function get_uuid(m::Module)
     end
 end
 
-function find_first_project_with_uuid(uuid::UUID)
-    # Find first element in `Base.load_path()` that contains this UUID
-    # This code should look similar to the search in `Base.get_preferences()`
+function load_path_walk(f::Function)
     for env in Base.load_path()
         project_toml = Base.env_project_file(env)
         if !isa(project_toml, String)
             continue
         end
 
+        ret = f(project_toml)
+        if ret !== nothing
+            return ret
+        end
+    end
+    return nothing
+end
+
+function get_uuid(name::String)
+    return load_path_walk() do project_toml
+        project = Base.parsed_toml(project_toml)
+        if haskey(project, "uuid") && get(project, "name", "") == name
+            return project["uuid"]
+        end
+        for key in ["deps", "extras"]
+            if haskey(project, key) && haskey(project[key], name)
+                return parse(Base.UUID, project[key][name])
+            end
+        end
+        return nothing
+   end
+end
+
+function find_first_project_with_uuid(uuid::UUID)
+    # Find first element in `Base.load_path()` that contains this UUID
+    # This code should look similar to the search in `Base.get_preferences()`
+    return load_path_walk() do project_toml
         # Check to see if this project has a name mapping
         pkg_name = Base.get_uuid_name(project_toml, uuid)
         if pkg_name !== nothing
             return (project_toml, pkg_name)
         end
+        return nothing
     end
-    return (nothing, nothing)
 end
 
 # Drop any nested `__clear__` keys:

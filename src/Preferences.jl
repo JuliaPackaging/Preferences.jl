@@ -285,6 +285,14 @@ end
 function set_preferences!(m::Module, prefs::Pair{String,<:Any}...; kwargs...)
     return set_preferences!(get_uuid(m), prefs...; kwargs...)
 end
+function set_preferences!(name::String, prefs::Pair{String,<:Any}...; kwargs...)
+    # Look up UUID
+    uuid = get_uuid(name)
+    if uuid === nothing
+        throw(ArgumentError("Cannot resolve package '$(name)' in load path; have you added the package as a top-level dependency?"))
+    end
+    return set_preferences!(uuid, prefs...; kwargs...)
+end
 
 """
     @set_preferences!(prefs...)
