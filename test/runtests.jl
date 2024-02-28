@@ -154,6 +154,26 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
     end
 end
 
+@testset "Loading UUID from Project.toml" begin
+    with_temp_depot() do; mktempdir() do dir
+        activate(dir) do
+            push!(Base.LOAD_PATH, dir)
+            try
+                # Can't do this unless `UsesPreferences` is added as a dep
+                @test_throws ArgumentError Preferences.set_preferences!("UsesPreferences", "location" => "exists")
+
+                Pkg.develop(;path=up_path)
+
+                # After `dev`'ing `up_path`, it works.
+                Preferences.set_preferences!("UsesPreferences", "location" => "exists")
+                @test load_preference(up_uuid, "location") == "exists"
+            finally
+                pop!(Base.LOAD_PATH)
+            end
+        end
+    end; end
+end
+
 # Load UsesPreferences, as we need it loaded to satisfy `set_preferences!()` below,
 # otherwise it can't properly map from a UUID to a name when installing into a package
 # that doesn't have UsesPreferences added yet.
