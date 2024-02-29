@@ -164,13 +164,19 @@ end
                 push!(Base.LOAD_PATH, dir)
                 try
                     # Can't do this unless `UsesPreferences` is added as a dep
-                    @test_throws ArgumentError Preferences.set_preferences!("UsesPreferences", "location" => "exists")
+                    @test_throws ArgumentError set_preferences!("UsesPreferences", "location" => "exists")
+                    @test_throws ArgumentError has_preference("UsesPreferences", "location")
+                    @test_throws ArgumentError load_preference("UsesPreferences", "location")
+                    @test_throws ArgumentError delete_preferences!("UsesPreferences", "location")
 
                     switch()
 
                     # After switching `up_path`, it works.
-                    Preferences.set_preferences!("UsesPreferences", "location" => "exists")
-                    @test load_preference(up_uuid, "location") == "exists"
+                    set_preferences!("UsesPreferences", "location" => "exists")
+                    @test has_preference("UsesPreferences", "location")
+                    @test load_preference("UsesPreferences", "location") == "exists"
+                    delete_preferences!("UsesPreferences", "location"; force=true)
+                    @test !has_preference("UsesPreferences", "location")
                 finally
                     pop!(Base.LOAD_PATH)
                     rm(local_prefs_toml; force=true)
