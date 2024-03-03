@@ -71,11 +71,14 @@ function get_uuid(name::String)
     return load_path_walk() do project_toml
         project = Base.parsed_toml(project_toml)
         if haskey(project, "uuid") && get(project, "name", "") == name
-            return project["uuid"]
+            return parse(Base.UUID, project["uuid"]::String)
         end
-        for key in ["deps", "extras"]
-            if haskey(project, key) && haskey(project[key], name)
-                return parse(Base.UUID, project[key][name])
+        for sect in ["deps", "extras"]
+            if haskey(project, sect)
+                deps = project[sect]::Dict{String,Any}
+                if haskey(deps, name)
+                    return parse(Base.UUID, deps[name]::String)
+                end
             end
         end
         return nothing
