@@ -85,6 +85,9 @@ function get_uuid(name::String)
    end
 end
 
+package_lookup_error(name::String) = throw(ArgumentError(
+    "Cannot resolve package '$(name)' in load path; have you added the package as a top-level dependency?"))
+
 function find_first_project_with_uuid(uuid::UUID)
     # Find first element in `Base.load_path()` that contains this UUID
     # This code should look similar to the search in `Base.get_preferences()`
