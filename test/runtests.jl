@@ -85,7 +85,10 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         @test !haskey(prefs["UsesPreferences"], "__clear__")
 
         # Now show that it forces recompilation
-        did_precompile(output) = occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output)
+        function did_precompile(output)
+            occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output) ||
+            occursin("Precompiling\e[22m\e[39m UsesPreferences", output)
+        end
         cuda_test = """
         using UsesPreferences, Test
         @test UsesPreferences.backend == "CUDA"
