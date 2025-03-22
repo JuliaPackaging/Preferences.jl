@@ -167,7 +167,7 @@ end
     set_preferences!(uuid_or_module_or_name_or_tuple, prefs::Pair{String,Any}...;
                      export_prefs=false, active_project_only=true, force=false)
 
-Sets a series of preferences for the given uuid::UUID/module::Module/name::String/name_and_uuid::Tuple{String, UUID),
+Sets a series of preferences for the given uuid::UUID/module::Module/name::String/uuid_and_name::Tuple{UUID, String),
 identified by the pairs passed in as `prefs`.  Preferences are loaded from `Project.toml`
 and `LocalPreferences.toml` files on the load path, merging values together into a cohesive
 view, with preferences taking precedence in `LOAD_PATH` order, just as package resolution
@@ -183,7 +183,7 @@ elements higher up in the `load_path()`.  To control this inheritance, there are
 special values that can be passed to `set_preferences!()`: `nothing` and `missing`.
 
 * When only one of module/name/UUID are passed, the missing information is extracted from the current project, and therefore it must be installed.
-  On the other hand, the (name, UUID) tuple form can be used to set preferences on a package that is not yet installed in the active project.
+  On the other hand, the (UUID, name) tuple form can be used to set preferences on a package that is not yet installed in the active project.
   It will be added as extra dependency during the process.
 * Passing `missing` as the value causes all mappings of the associated key to be removed
   from the current level of `LocalPreferences.toml` settings, allowing preferences set
@@ -241,7 +241,7 @@ function _get_project_toml(u, active_project_only)
     return project_toml
 end
 
-function set_preferences!((pkg_name, u)::Tuple{String, UUID},
+function set_preferences!((u, pkg_name)::Tuple{UUID, String},
                           prefs::Pair{String,<:Any}...;
                           export_prefs=false,
                           active_project_only::Bool=true,
@@ -319,7 +319,7 @@ function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...;
             "(Hint: You can set the preference if you pass the name and UUID as a tuple.)"
         )
     end
-    set_preferences!((pkg_name, u), prefs...;
+    set_preferences!((u, pkg_name), prefs...;
                      export_prefs=export_prefs,
                      active_project_only=active_project_only,
                      project_toml=project_toml,
