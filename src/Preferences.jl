@@ -164,10 +164,10 @@ function set_preferences!(target_toml::String, pkg_name::String, pairs::Pair{Str
 end
 
 """
-    set_preferences!(uuid_or_module_or_name, prefs::Pair{String,Any}...;
+    set_preferences!(uuid_or_module_or_name_or_tuple, prefs::Pair{String,Any}...;
                      export_prefs=false, active_project_only=true, force=false)
 
-Sets a series of preferences for the given uuid::UUID/module::Module/name::String,
+Sets a series of preferences for the given uuid::UUID/module::Module/name::String/uuid_and_name::Tuple{UUID, String),
 identified by the pairs passed in as `prefs`.  Preferences are loaded from `Project.toml`
 and `LocalPreferences.toml` files on the load path, merging values together into a cohesive
 view, with preferences taking precedence in `LOAD_PATH` order, just as package resolution
@@ -182,6 +182,9 @@ the merging performed by `load_preference()` due to inheritance of preferences f
 elements higher up in the `load_path()`.  To control this inheritance, there are two
 special values that can be passed to `set_preferences!()`: `nothing` and `missing`.
 
+* When only one of module/name/UUID are passed, the missing information is extracted from the current project, and therefore it must be installed.
+  On the other hand, the (UUID, name) tuple form can be used to set preferences on a package that is not yet installed in the active project.
+  It will be added as extra dependency during the process.
 * Passing `missing` as the value causes all mappings of the associated key to be removed
   from the current level of `LocalPreferences.toml` settings, allowing preferences set
   higher in the chain of preferences to pass through.  Use this value when you want to
@@ -220,8 +223,33 @@ preference in the active project and adding it as an extra dependency.
 """
 function set_preferences! end
 
-function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=false,
-                          active_project_only::Bool=true, kwargs...)
+function _get_project_toml(u, active_project_only)
+    if active_project_only
+        project_toml = Base.active_project()
+    else
+        project_toml, pkg_name = find_first_project_with_uuid(u)
+        if project_toml === nothing && pkg_name === nothing
+            project_toml = Base.active_project()
+        end
+    end
+
+    # X-ref: https://github.com/JuliaPackaging/Preferences.jl/issues/34
+    # We need to handle the edge cases where `project_toml` doesn't exist yet
+    if !isfile(project_toml)
+        touch(project_toml)
+    end
+    return project_toml
+end
+
+function set_preferences!((u, pkg_name)::Tuple{UUID, String},
+                          prefs::Pair{String,<:Any}...;
+                          export_prefs=false,
+                          active_project_only::Bool=true,
+                          project_toml=nothing,
+                          kwargs...)
+    if project_toml === nothing
+        project_toml = _get_project_toml(u, active_project_only)
+    end
     # If we try to add preferences for a dependency, we need to make sure
     # it is listed as a dependency, so if it's not, we'll add it in the
     # "extras" section in the `Project.toml`.
@@ -244,43 +272,6 @@ function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=fa
         return project_toml, pkg_name
     end
 
-    # Get the pkg name from the current environment if we can't find a
-    # mapping for it in any environment block.  This assumes that the name
-    # mapping should be the same as what was used in when it was loaded.
-    function get_pkg_name_from_env()
-        pkg_uuid_matches = filter(d -> d.uuid == u, keys(Base.loaded_modules))
-        if isempty(pkg_uuid_matches)
-            return nothing
-        end
-        return first(pkg_uuid_matches).name
-    end
-
-
-    if active_project_only
-        project_toml = Base.active_project()
-    else
-        project_toml, pkg_name = find_first_project_with_uuid(u)
-        if project_toml === nothing && pkg_name === nothing
-            project_toml = Base.active_project()
-        end
-    end
-
-    # X-ref: https://github.com/JuliaPackaging/Preferences.jl/issues/34
-    # We need to handle the edge cases where `project_toml` doesn't exist yet
-    if !isfile(project_toml)
-        touch(project_toml)
-    end
-
-    pkg_name = something(
-        Base.get_uuid_name(project_toml, u),
-        get_pkg_name_from_env(),
-        Some(nothing),
-    )
-    # This only occurs if we couldn't find any hint of the given pkg
-    if pkg_name === nothing
-        error("Cannot set preferences of an unknown package that is not loaded!")
-    end
-
     ensure_dep_added(project_toml, u, pkg_name)
 
     # Finally, save the preferences out to either `Project.toml` or
@@ -299,6 +290,40 @@ function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...; export_prefs=fa
         end
     end
     return set_preferences!(target_toml, pkg_name, prefs...; kwargs...)
+end
+function set_preferences!(u::UUID, prefs::Pair{String,<:Any}...;
+                          export_prefs=false,
+                          active_project_only::Bool=true,
+                          project_toml=_get_project_toml(u, active_project_only),
+                          kwargs...)
+
+    # Get the pkg name from the current environment if we can't find a
+    # mapping for it in any environment block.  This assumes that the name
+    # mapping should be the same as what was used in when it was loaded.
+    function get_pkg_name_from_env()
+        pkg_uuid_matches = filter(d -> d.uuid == u, keys(Base.loaded_modules))
+        if isempty(pkg_uuid_matches)
+            return nothing
+        end
+        return first(pkg_uuid_matches).name
+    end
+    pkg_name = something(
+        Base.get_uuid_name(project_toml, u),
+        get_pkg_name_from_env(),
+        Some(nothing),
+    )
+    # This only occurs if we couldn't find any hint of the given pkg
+    if pkg_name === nothing
+        error(
+            "Cannot set preferences of an unknown package that is not loaded! " *
+            "(Hint: You can set the preference if you pass the name and UUID as a tuple.)"
+        )
+    end
+    set_preferences!((u, pkg_name), prefs...;
+                     export_prefs=export_prefs,
+                     active_project_only=active_project_only,
+                     project_toml=project_toml,
+                     kwargs...)
 end
 function set_preferences!(m::Module, prefs::Pair{String,<:Any}...; kwargs...)
     return set_preferences!(get_uuid(m), prefs...; kwargs...)
