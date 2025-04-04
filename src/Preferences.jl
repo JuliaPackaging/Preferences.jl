@@ -135,7 +135,8 @@ function set_preferences!(target_toml::String, pkg_name::String, pairs::Pair{Str
         d = Base.parsed_toml(target_toml)
     end
     prefs = d
-    if endswith(target_toml, "Project.toml")
+    is_project_toml = endswith(target_toml, "Project.toml")
+    if is_project_toml
         if !haskey(prefs, "preferences")
             prefs["preferences"] = Dict{String,Any}()
         end
@@ -158,10 +159,33 @@ function set_preferences!(target_toml::String, pkg_name::String, pairs::Pair{Str
         prefs[pkg_name] = process_sentinel_values!(prefs[pkg_name])
     end
     open(target_toml, "w") do io
-        TOML.print(io, d, sorted=true)
+        if is_project_toml
+            project_toml_print(io, d)
+        else
+            TOML.print(io, d; sorted=true)
+        end
     end
     return nothing
 end
+
+# Taken from Pkg.jl v1.11.4 (but we don't want to depend on Pkg.jl directly just for this)
+#   https://github.com/JuliaLang/Pkg.jl/blob/v1.11.4/src/project.jl#L235
+# with `preferences` added before `deps`
+const _project_key_order = ["name", "uuid", "keywords", "license", "desc", "preferences", "deps", "weakdeps", "sources", "extensions", "compat"]
+project_key_order(key::String) = something(findfirst(x -> x == key, _project_key_order), length(_project_key_order) + 1)
+function project_toml_print(io::IO, d::Dict)
+    @static if VERSION <= v"1.11-"
+        TOML.print(io, d; sorted=true, by=key -> (project_key_order(key), key))
+    else
+        kw = (sorted=true, by=key -> (project_key_order(key), key))
+        if haskey(d, "sources")
+            inline_tables = IdSet{Dict{String}}(v for v in values(d["sources"]))
+            kw = merge(kw, (; inline_tables))
+        end
+        TOML.print(io, d; kw...)
+    end
+end
+
 
 """
     set_preferences!(uuid_or_module_or_name_or_tuple, prefs::Pair{String,Any}...;

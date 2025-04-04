@@ -443,3 +443,28 @@ end
         end
     end
 end
+
+# https://github.com/JuliaPackaging/Preferences.jl/issues/52
+# Need v1.11+ for Project.toml `[sources]` section to be supported.
+if VERSION > v"1.11.0-"
+@testset "Project.toml writing" begin
+    Pkg.activate("PkgV_1_11_plus") do
+        @eval using PkgV_1_11_plus
+        proj_path = joinpath("PkgV_1_11_plus", "Project.toml")
+        proj_before = read(proj_path, String)
+        ref_before = read(joinpath("PkgV_1_11_plus", "Project-reference-before.toml"), String)
+        @test proj_before == ref_before
+        try
+            set_preferences!(PkgV_1_11_plus, "TEST_PREF" => true; export_prefs=true)
+            proj_after = read(proj_path, String)
+            ref_after = read(joinpath("PkgV_1_11_plus", "Project-reference-after.toml"), String)
+            @assert ref_before != ref_after
+            @test proj_after == ref_after
+        finally
+            open(proj_path, "w") do io
+                write(io, proj_before)
+            end
+        end
+    end
+end
+end # if VERSION
