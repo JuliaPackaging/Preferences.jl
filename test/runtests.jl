@@ -87,7 +87,8 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         # Now show that it forces recompilation
         function did_precompile(output)
             occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output) ||
-            occursin("Precompiling\e[22m\e[39m UsesPreferences", output)
+            occursin("Precompiling\e[22m\e[39m UsesPreferences", output) ||
+            occursin(r"\e\[32m +✓ +\e\[39mUsesPreferences", output)
         end
         cuda_test = """
         using UsesPreferences, Test
