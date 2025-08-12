@@ -94,13 +94,13 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         end
         cuda_test_base = """
         using UsesPreferences
-        VERSION >= v"1.10" && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
+        isdefined(Base, :isprecompiled) && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
         @test UsesPreferences.backend == "CUDA"
         """
         cuda_test_did_precompile = """
         using Test
         # Make sure `UsesPreferences` has to be recompiled
-        VERSION >= v"1.10" && @test !Base.isprecompiled(Base.identify_package("UsesPreferences"))
+        isdefined(Base, :isprecompiled) && @test !Base.isprecompiled(Base.identify_package("UsesPreferences"))
         """ * cuda_test_base
         output = activate_and_run(up_path, cuda_test_did_precompile; env=Dict("JULIA_DEBUG" => "loading"))
         @test did_precompile(output)
@@ -109,7 +109,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         cuda_test_didnt_precompile = """
         using Test
         # Make sure `UsesPreferences` is already precompiled
-        VERSION >= v"1.10" && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
+        isdefined(Base, :isprecompiled) && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
         """ * cuda_test_base
         output = activate_and_run(up_path, cuda_test_didnt_precompile; env=Dict("JULIA_DEBUG" => "loading"))
         @test !did_precompile(output)
@@ -129,9 +129,9 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         username_test = """
         using Test
         # Make sure `UsesPreferences` is already precompiled
-        VERSION >= v"1.10" && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
+        isdefined(Base, :isprecompiled) && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
         using UsesPreferences, Preferences
-        VERSION >= v"1.10" && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
+        isdefined(Base, :isprecompiled) && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
         @test UsesPreferences.get_username() == "giordano"
         """
         output = activate_and_run(up_path, username_test; env=Dict("JULIA_DEBUG" => "loading"))
