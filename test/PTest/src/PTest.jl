@@ -10,6 +10,8 @@ function do_test()
     @test @load_preference("dynamic_exported", default = nothing) == "Local preference just exported"
 
     @test @load_preference("set_by_runtests", default = nothing) == "This was set by runtests.jl"
+
+    @test load_preference("TOML", "set_by_runtests", nothing) == "This was set by runtests.jl"
    
     # Pkg handling preferences correctly only came into being in v1.8.0:
     # X-ref: https://github.com/JuliaLang/Pkg.jl/commit/e7f1659abd7ae93ce2fbaab491873624cd24eb01

@@ -1,5 +1,5 @@
 using Base: UUID
-using Preferences, Test, TOML
+using Preferences, Test, TOML, Pkg, SHA
 
 function activate(f::Function, env_dir::String)
     saved_active_project = Base.ACTIVE_PROJECT[]
@@ -85,16 +85,33 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         @test !haskey(prefs["UsesPreferences"], "__clear__")
 
         # Now show that it forces recompilation
-        did_precompile(output) = occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output)
-        cuda_test = """
-        using UsesPreferences, Test
+        function did_precompile(output)
+            # TODO: When we support only Julia v1.10+, remove this function and
+            # only use `Base.isprecompiled` to check this.
+            occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output) ||
+            occursin("Precompiling\e[22m\e[39m UsesPreferences", output) ||
+            occursin(r"\e\[32m +✓ +\e\[39mUsesPreferences", output)
+        end
+        cuda_test_base = """
+        using UsesPreferences
+        isdefined(Base, :isprecompiled) && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
         @test UsesPreferences.backend == "CUDA"
         """
-        output = activate_and_run(up_path, cuda_test; env=Dict("JULIA_DEBUG" => "loading"))
+        cuda_test_did_precompile = """
+        using Test
+        # Make sure `UsesPreferences` has to be recompiled
+        isdefined(Base, :isprecompiled) && @test !Base.isprecompiled(Base.identify_package("UsesPreferences"))
+        """ * cuda_test_base
+        output = activate_and_run(up_path, cuda_test_did_precompile; env=Dict("JULIA_DEBUG" => "loading"))
         @test did_precompile(output)
 
         # Show that it does not force a recompile the second time
-        output = activate_and_run(up_path, cuda_test; env=Dict("JULIA_DEBUG" => "loading"))
+        cuda_test_didnt_precompile = """
+        using Test
+        # Make sure `UsesPreferences` is already precompiled
+        isdefined(Base, :isprecompiled) && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
+        """ * cuda_test_base
+        output = activate_and_run(up_path, cuda_test_didnt_precompile; env=Dict("JULIA_DEBUG" => "loading"))
         @test !did_precompile(output)
 
         # Test non-compiletime preferences a bit
@@ -110,7 +127,11 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
 
         # This does not cause a recompilation, and we can also get the username back again:
         username_test = """
-        using UsesPreferences, Test, Preferences
+        using Test
+        # Make sure `UsesPreferences` is already precompiled
+        isdefined(Base, :isprecompiled) && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
+        using UsesPreferences, Preferences
+        isdefined(Base, :isprecompiled) && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
         @test UsesPreferences.get_username() == "giordano"
         """
         output = activate_and_run(up_path, username_test; env=Dict("JULIA_DEBUG" => "loading"))
@@ -151,6 +172,45 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
             output = activate_and_run(up_path, username_test; env=Dict("JULIA_DEBUG" => "loading"))
             @test !did_precompile(output)
         end
+    end
+end
+
+@testset "Loading UUID from Project.toml" begin
+    local_prefs_toml = joinpath(up_path, "LocalPreferences.toml")
+    rm(local_prefs_toml; force=true)
+
+    function test_uuid_loading_from_name(switch)
+        with_temp_depot() do; mktempdir() do dir
+            activate(dir) do
+                push!(Base.LOAD_PATH, dir)
+                try
+                    # Can't do this unless `UsesPreferences` is added as a dep
+                    @test_throws ArgumentError set_preferences!("UsesPreferences", "location" => "exists")
+                    @test_throws ArgumentError has_preference("UsesPreferences", "location")
+                    @test_throws ArgumentError load_preference("UsesPreferences", "location")
+                    @test_throws ArgumentError delete_preferences!("UsesPreferences", "location")
+
+                    switch()
+
+                    # After switching `up_path`, it works.
+                    set_preferences!("UsesPreferences", "location" => "exists")
+                    @test has_preference("UsesPreferences", "location")
+                    @test load_preference("UsesPreferences", "location") == "exists"
+                    delete_preferences!("UsesPreferences", "location"; force=true)
+                    @test !has_preference("UsesPreferences", "location")
+                finally
+                    pop!(Base.LOAD_PATH)
+                    rm(local_prefs_toml; force=true)
+                end
+            end
+        end; end
+    end
+
+    test_uuid_loading_from_name() do
+        Pkg.develop(; path=up_path) # load UUID with dependency's name
+    end
+    test_uuid_loading_from_name() do
+        Pkg.activate(up_path)       # load UUID with the active project name
     end
 end
 
@@ -328,7 +388,6 @@ end
     end; end
 end
 
-using Pkg, SHA
 @testset "Pkg.test()" begin
     # Let's test that using `Pkg.test()` on a fake little package works as expected
     # This package will both expect to read a preference that was defined in the
@@ -337,7 +396,68 @@ using Pkg, SHA
     # during the test and assert that the Project.toml file remains unchanged.
     project_hash = open(io -> SHA.sha256(io), joinpath(@__DIR__, "PTest", "Project.toml"))
     Pkg.activate(joinpath(@__DIR__, "PTest")) do
-        Pkg.test()
+        Pkg.test(; io=devnull)
     end
     @test project_hash == open(io -> SHA.sha256(io), joinpath(@__DIR__, "PTest", "Project.toml"))
+end
+
+const PkgA_DIR = normpath(@__DIR__, "PkgA")
+const PkgB_DIR = normpath(@__DIR__, "PkgB")
+function test_with_PkgAB(test_func)
+    old = Pkg.project().path
+    mktempdir() do tempdir
+        try
+            pkgdir = normpath(tempdir, "NonPkgConfig")
+            Pkg.generate(pkgdir; io=devnull)
+            Pkg.activate(pkgdir; io=devnull)
+            Pkg.develop(; path=PkgA_DIR, io=devnull)
+            Pkg.develop(; path=PkgB_DIR, io=devnull)
+
+            local_prefs_toml = normpath(pkgdir, "LocalPreferences.toml")
+            open(local_prefs_toml, "w") do io
+                write(io, """
+                [PkgA]
+                PkgAConfig = true
+                PkgARuntimeConfig = 1
+
+                [PkgB]
+                PkgBConfig = true
+                PkgBRuntimeConfig = 2
+                """)
+            end
+
+            @eval $test_func()
+        finally
+            Pkg.activate(old; io=devnull)
+        end
+    end
+end
+
+@testset "Configuration override for non-package module" begin
+    test_with_PkgAB() do
+        # test the support of configuration override for non-package module
+        try
+            Preferences.main_uuid[] = Pkg.project().dependencies["PkgA"]
+            PkgA = include(normpath(PkgA_DIR, "src", "PkgA.jl"))
+            @test PkgA.PkgAConfig
+            @test 1 == Base.invokelatest(PkgA.PkgARuntimeConfig_macro)
+            @test 1 == Base.invokelatest(PkgA.PkgARuntimeConfig_func)
+        finally
+            Preferences.main_uuid[] = nothing
+        end
+
+        try
+            Preferences.main_uuid[] = Pkg.project().dependencies["PkgB"]
+            PkgB = include(normpath(PkgB_DIR, "src", "PkgB.jl"))
+            @test PkgB.PkgBConfig
+            @test 2 == Base.invokelatest(PkgB.PkgBRuntimeConfig_macro)
+            @test 2 == Base.invokelatest(PkgB.PkgBRuntimeConfig_func)
+
+            # the overridden configuration should persist across the same session
+            @test 1 == Base.invokelatest(PkgA.PkgARuntimeConfig_macro)
+            @test 1 == Base.invokelatest(PkgA.PkgARuntimeConfig_func)
+        finally
+            Preferences.main_uuid[] = nothing
+        end
+    end
 end

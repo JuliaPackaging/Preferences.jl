@@ -1,18 +1,15 @@
-# Preferences
+# Preferences.jl
 
-[![Continuous Integration][ci-img]][ci-url]
-[![Code Coverage][codecov-img]][codecov-url]
-
-[ci-url]:               https://github.com/JuliaPackaging/Preferences.jl/actions?query=workflow%3ACI
-[codecov-url]:          https://codecov.io/gh/JuliaPackaging/Preferences.jl
-
-[ci-img]:               https://github.com/JuliaPackaging/Preferences.jl/workflows/CI/badge.svg                     "Continuous Integration"
-[codecov-img]:          https://codecov.io/gh/JuliaPackaging/Preferences.jl/branch/master/graph/badge.svg           "Code Coverage"
+[![Docs-stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://juliapackaging.github.io/Preferences.jl/stable)
+[![Docs-dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://juliapackaging.github.io/Preferences.jl/dev)
+[![Continuous Integration](https://github.com/JuliaPackaging/Preferences.jl/workflows/CI/badge.svg)](https://github.com/JuliaPackaging/Preferences.jl/actions?query=workflow%3ACI)
+[![Code Coverage](https://codecov.io/gh/JuliaPackaging/Preferences.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaPackaging/Preferences.jl)
+[![License: MIT](https://img.shields.io/badge/License-MIT-success.svg)](https://opensource.org/licenses/MIT)
 
 The `Preferences` package provides a convenient, integrated way for packages to store configuration switches to persistent TOML files, and use those pieces of information at both run time and compile time in Julia v1.6+.
 This enables the user to modify the behavior of a package, and have that choice reflected in everything from run time algorithm choice to code generation at compile time.
 Preferences are stored as TOML dictionaries and are, by default, stored within a `(Julia)LocalPreferences.toml` file next to the currently-active project.
-If a preference is "exported", it is instead stored within the `[preferences]` section in the `(Julia)Project.toml` file.
+If a preference is "exported" (`export_prefs=true`), it is instead stored within the `[preferences]` section in the `(Julia)Project.toml` file.
 The intention is to allow shared projects to contain shared preferences, while allowing for users themselves to override those preferences with their own settings in the `LocalPreferences.toml` file, which should be `.gitignore`d as the name implies.
 
 Preferences can be set with depot-wide defaults; if package `Foo` is installed within your global environment and it has preferences set, these preferences will apply as long as your global environment is part of your [`LOAD_PATH`](https://docs.julialang.org/en/v1/manual/code-loading/#Environment-stacks).
@@ -32,7 +29,7 @@ Preferences use is very simple; it is all based around four functions (which eac
 
 * `@load_preference(key, default = nothing)`: This loads a preference named `key` for the current package.  If no such preference is found, it returns `default`.
 
-* `@set_preferences!(pairs...)`: This allows setting multiple preferences at once as pairs.
+* `@set_preferences!(pairs...; export_prefs=false)`: This allows setting multiple preferences at once as pairs.
 
 * `@has_preference(key)`: Returns true if the preference named `key` is found, and `false` otherwise.
 
@@ -98,3 +95,12 @@ end
 ```
 Note that these cannot be merged into a single `@static if`. Loading
 the package with `using Preferences` must be done on its own.
+
+## Authors
+This repository was initiated by Elliot Saba
+([@staticfloat](https://github.com/staticfloat)) and continues to be maintained by him and
+other contributors.
+
+## License and contributing
+Preferences.jl is licensed under the MIT license (see [LICENSE.md](LICENSE.md)).
+Contributions by volunteers are welcome!
