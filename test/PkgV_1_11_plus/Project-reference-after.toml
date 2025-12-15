@@ -1,0 +1,26 @@
+name = "PkgV_1_11_plus"
+uuid = "6fde81da-fe91-40db-985f-5f1fb79db309"
+authors = ["Preferences.jl contributors"]
+version = "0.1.0"
+
+[preferences.PkgV_1_11_plus]
+TEST_PREF = true
+
+[deps]
+Example = "7876af07-990d-54b4-ab0e-23690620f79a"
+LocalPkg = "fcf55292-0d03-4e8a-9e0b-701580031fc3"
+
+[sources]
+Example = {url = "https://github.com/JuliaLang/Example.jl"}
+LocalPkg = {path = "LocalPkg"}
+
+[compat]
+Example = "0.5"
+Test = "1.11.0"
+julia = "1.11"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
