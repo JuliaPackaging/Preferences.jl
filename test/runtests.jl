@@ -439,9 +439,9 @@ end
         try
             Preferences.main_uuid[] = Pkg.project().dependencies["PkgA"]
             PkgA = include(normpath(PkgA_DIR, "src", "PkgA.jl"))
-            @test PkgA.PkgAConfig
-            @test 1 == Base.invokelatest(PkgA.PkgARuntimeConfig_macro)
-            @test 1 == Base.invokelatest(PkgA.PkgARuntimeConfig_func)
+            @test Base.invokelatest(getproperty, PkgA, :PkgAConfig)
+            @test 1 == Base.invokelatest(Base.invokelatest(getproperty, PkgA, :PkgARuntimeConfig_macro))
+            @test 1 == Base.invokelatest(Base.invokelatest(getproperty, PkgA, :PkgARuntimeConfig_func))
         finally
             Preferences.main_uuid[] = nothing
         end
@@ -449,13 +449,14 @@ end
         try
             Preferences.main_uuid[] = Pkg.project().dependencies["PkgB"]
             PkgB = include(normpath(PkgB_DIR, "src", "PkgB.jl"))
-            @test PkgB.PkgBConfig
-            @test 2 == Base.invokelatest(PkgB.PkgBRuntimeConfig_macro)
-            @test 2 == Base.invokelatest(PkgB.PkgBRuntimeConfig_func)
+            @test Base.invokelatest(getproperty, PkgB ,:PkgBConfig)
+            @test 2 == Base.invokelatest(Base.invokelatest(getproperty, PkgB, :PkgBRuntimeConfig_macro))
+            @test 2 == Base.invokelatest(Base.invokelatest(getproperty, PkgB, :PkgBRuntimeConfig_func))
 
             # the overridden configuration should persist across the same session
-            @test 1 == Base.invokelatest(PkgA.PkgARuntimeConfig_macro)
-            @test 1 == Base.invokelatest(PkgA.PkgARuntimeConfig_func)
+            pkgA = Base.invokelatest(getproperty, Main, :PkgA)
+            @test 1 == Base.invokelatest(Base.invokelatest(getproperty, pkgA, :PkgARuntimeConfig_macro))
+            @test 1 == Base.invokelatest(Base.invokelatest(getproperty, pkgA, :PkgARuntimeConfig_func))
         finally
             Preferences.main_uuid[] = nothing
         end
