@@ -114,7 +114,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         output = activate_and_run(up_path, cuda_test_didnt_precompile; env=Dict("JULIA_DEBUG" => "loading"))
         @test !did_precompile(output)
 
-        # Test that changing a preference loaded with `compiletime=false` does not
+        # Test that changing a preference loaded with `disable_invalidation=true` does not
         # trigger recompilation, even though it was read at module-load time.
         activate_and_run(up_path, """
             using Preferences
@@ -132,7 +132,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         output = activate_and_run(up_path, noncached_test; env=Dict("JULIA_DEBUG" => "loading"))
         @test !did_precompile(output)
 
-        # Test non-compiletime preferences a bit
+        # Test preferences with invalidation disabled
         activate_and_run(up_path, """
             using UsesPreferences, Test, Preferences
             using Base: UUID
