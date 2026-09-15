@@ -1,0 +1,4 @@
+name = "LocalPkg"
+uuid = "8fa365b9-38ac-4f5f-96f8-37668e8e369e"
+authors = ["Preferences.jl contributors"]
+version = "0.1.0"
