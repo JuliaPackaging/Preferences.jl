@@ -86,8 +86,8 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
 
         # Now show that it forces recompilation
         function did_precompile(output)
-            # TODO: When we support only Julia v1.10+, remove this function and
-            # only use `Base.isprecompiled` to check this.
+            # On Julia v1.10+ the scripts check `Base.isprecompiled` instead. Older
+            # versions only show a recompile in the log. Remove this with them.
             occursin("Precompiling UsesPreferences [$(string(up_uuid))]", output) ||
             occursin("Precompiling\e[22m\e[39m UsesPreferences", output) ||
             occursin(r"\e\[32m +✓ +\e\[39mUsesPreferences", output)
@@ -103,7 +103,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         isdefined(Base, :isprecompiled) && @test !Base.isprecompiled(Base.identify_package("UsesPreferences"))
         """ * cuda_test_base
         output = activate_and_run(up_path, cuda_test_did_precompile; env=Dict("JULIA_DEBUG" => "loading"))
-        @test did_precompile(output)
+        isdefined(Base, :isprecompiled) || @test did_precompile(output)
 
         # Show that it does not force a recompile the second time
         cuda_test_didnt_precompile = """
@@ -112,7 +112,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         isdefined(Base, :isprecompiled) && @test Base.isprecompiled(Base.identify_package("UsesPreferences"))
         """ * cuda_test_base
         output = activate_and_run(up_path, cuda_test_didnt_precompile; env=Dict("JULIA_DEBUG" => "loading"))
-        @test !did_precompile(output)
+        isdefined(Base, :isprecompiled) || @test !did_precompile(output)
 
         # Test that changing a preference loaded with `force_compiletime_default=true` does
         # not trigger recompilation, because the default value was used during precompilation.
@@ -130,7 +130,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         @test UsesPreferences.backend_noncached == "OpenCL"  # default was used at compile time
         """
         output = activate_and_run(up_path, noncached_test; env=Dict("JULIA_DEBUG" => "loading"))
-        @test !did_precompile(output)
+        isdefined(Base, :isprecompiled) || @test !did_precompile(output)
 
         # Test preferences with invalidation disabled
         activate_and_run(up_path, """
@@ -153,7 +153,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
         @test UsesPreferences.get_username() == "giordano"
         """
         output = activate_and_run(up_path, username_test; env=Dict("JULIA_DEBUG" => "loading"))
-        @test !did_precompile(output)
+        isdefined(Base, :isprecompiled) || @test !did_precompile(output)
 
         _prefs_delete_username = "delete_preferences!($(repr(up_uuid)), \"username\"; block_inheritance = false)"
         _delete_username = "UsesPreferences.delete_username()"
@@ -188,7 +188,7 @@ up_path = joinpath(@__DIR__, "UsesPreferences")
             $(snippet)
             """
             output = activate_and_run(up_path, username_test; env=Dict("JULIA_DEBUG" => "loading"))
-            @test !did_precompile(output)
+            isdefined(Base, :isprecompiled) || @test !did_precompile(output)
         end
     end
 end
